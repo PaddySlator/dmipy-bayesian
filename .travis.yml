@@ -1,0 +1,80 @@
+#deploy:
+#  provider: pypi
+#  user: athenaepi
+#  password:
+#    secure: U8Bfe8mXUSp5HYzGsyJfLuVzu+uEt6hid6AQb+HafJMHhhmoiX4cL8IH1xYaT/ZDXR02IO5bpQpjLLvKizDCXrfEgM/YTWhi1lldVh8O6cdP0gBeNfYNQz0qmbWhJFGzN+ad4VXBXrCVIPtF88mmowzRr6P0vLHW8GudSPInJKl6ofUwJDkOOFL6tqAiSLTIlwQQtvKTMqxCAQ3U+kliznpbbjFJSCjf29IQ/tUqzflbKmVdpr5nXCwVONNnydnY8fFK9Vrhl2UchFKjE5KbfoYxFs9udhlgxZMoKSDmTcvhhjwZ7HN8WPABxvY+IvrDi+CUjFDKBKZhSan0fQBfc8aMN0YVE2/TtEJXwsA9g4c3/BkcoF532mc7e2dzExQwOh/xS/iLPhn0qtf+VQn7po7iXwSMbpPIqEOYbgpaWXzgo0Pf5O5Q0pKzuXpcN4femZ1hEtTZ9f13LHuyjLPN9GAZjQmdUGbIkPFY/bbu6ssbkcgKZTABODln68LOnLDQGqpog5bYQ9Myr5mLhF3duLjnoZIcuReyQ7Ed8Z7bcNeiu7t4PAWbgm2DJ3VrUkzq24iUvGedwh3Eqr4eQnedrk2Bn3+rqVv00FjX9elmR7S3TJ4l4jPkfg8R48tDan6wGqhu3s2S97MSmgi+/gWDAEpTBHaHc5DuZ4TcJXTb3To=
+#  on:
+#    tags: true
+#    repo: AthenaEPI/microstruktur
+
+env:
+  global:
+    - CONDA_DEPS="pip flake8 nose coverage pytest numpy scipy matplotlib seaborn pandas h5py cvxpy nbconvert entrypoints" PIP_DEPS="coveralls pytest-cov codecov pathlib travis-sphinx boto"
+
+matrix:
+  include:
+    #- os: osx
+    #  python: 2.7
+    #  env:
+    #     - PYTHON_VERSION=2.7
+    #     - MINICONDA_URL="https://repo.continuum.io/miniconda/Miniconda2-latest-MacOSX-x86_64.sh"
+    #- os: osx
+    #  python: 3.5
+    #  env:
+    #     - PYTHON_VERSION=3.5
+    #     - MINICONDA_URL="https://repo.continuum.io/miniconda/Miniconda3-latest-MacOSX-x86_64.sh"
+    - os: linux
+      python: 2.7
+    - os: linux
+      python: 3.5
+    - os: linux
+      python: 3.6
+    - os: linux
+      python: 3.7
+
+before_install:
+- export MINICONDA=$HOME/miniconda
+- export PATH="$MINICONDA/bin:$PATH"
+- hash -r
+- if [[ "$TRAVIS_PYTHON_VERSION" == "2.7" ]]; then
+    wget https://repo.continuum.io/miniconda/Miniconda2-latest-Linux-x86_64.sh -O miniconda.sh;
+  else
+    wget https://repo.continuum.io/miniconda/Miniconda3-latest-Linux-x86_64.sh -O miniconda.sh;
+  fi
+- export PYTHON_VERSION=$TRAVIS_PYTHON_VERSION
+- bash miniconda.sh -b -f -p $MINICONDA;
+- source "$MINICONDA/etc/profile.d/conda.sh"
+- conda config --set always_yes yes --set changeps1 no
+- conda update -q conda
+- conda info -a
+- conda config --append channels conda-forge
+- conda config --append channels cvxgrp
+- conda config --set channel_priority strict
+- conda create -n testenv python=$PYTHON_VERSION $CONDA_DEPS
+- conda activate testenv
+- travis_retry pip install $PIP_DEPS
+
+install:
+- python setup.py install --record installed_files.txt
+
+script:
+- flake8 --ignore N802,N806,E731,F401,W504,W605 `find . -name \*.py | grep -v setup.py | grep -v /doc/`
+- nosetests --with-coverage -v
+  #- travis-sphinx build -s doc
+  #- for a in examples/*ipynb; do 
+  #  echo $a;
+  #  jupyter nbconvert --execute $a >/dev/null;
+  #  if [ $? -eq 0 ]; then
+  #    echo "Succesful";
+  #  else
+  #    echo "Failed";
+  #  fi;
+  #done
+  # - mkdir for_test
+  # - cd for_test
+  #- py.test --pyargs microstruktur --cov-report term-missing --cov=microstruktur
+
+after_success:
+- coveralls
+- codecov -t a66df7b8-efce-412e-9ea8-2598b09b186e
+- cd doc; make html && ./push.sh
