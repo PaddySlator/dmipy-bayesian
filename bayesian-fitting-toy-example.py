@@ -141,14 +141,11 @@ def tform_params(params_all, direction):
         params_all[1, :] = np.exp(params_all[1, :])
         params_all[2, :] = np.exp(params_all[2, :]) / (1 + np.exp(params_all[2, :]))
         params_all[2, :] = [1 if np.isnan(x) else x for x in params_all[2, :]]
-        #params_all[2, :] = [0 if np.isinf(x) else x for x in params_all[2, :]]
-        #elif np.isinf(params_all[2, :]).any():
-        #    [0 if np.isinf(x) else x for x in params_all[2, :]]
 
     return params_all
 
 
-def tform_params_old(params_all, direction):
+def scale_params(params_all, direction):
     if direction == 'f':
         params_all[0, :] = params_all[0, :] * 1e9
         params_all[1, :] = params_all[1, :] * 1e9
@@ -169,18 +166,16 @@ def run_optimization(params_all, E_sim, E_fit, nvox, nMCMCsteps, burn_in):
     # initialise sigma
     sigma = np.cov(params_all)
 
-    # TO DO: tune weights for Metropolis-Hastings parameter sampling (f, D, D* from Orton, orientations guessed)
+    # initial weights for Metropolis-Hastings parameter sampling (f, D, D* from Orton, orientations guessed)
     w = [.2, .5, .5, .1, .1]
 
     T = compute_temp_schedule(2000, 10 ** -3, nMCMCsteps)
 
     accepted = np.zeros((w.__len__()))          # count total accepted moves for each param
     accepted_per_100 = np.zeros((w.__len__()))  # track accepted moves for each param per 100 steps (to update weights)
-    # acceptance_rate = []
-    # acceptance_rate.append(accepted)
     acceptance_rate = np.zeros([(w.__len__()), nMCMCsteps])   # track accepted moves for each param at each step
 
-    param_conv = np.zeros((3, nMCMCsteps))  # track parameter convergence
+    param_conv = np.zeros((5, nMCMCsteps))  # track parameter convergence
     tmpgibbs = np.zeros((5, nMCMCsteps))
 
     # NB i (voxel loop) and j (MC loop) in keeping with Orton paper
@@ -203,9 +198,16 @@ def run_optimization(params_all, E_sim, E_fit, nvox, nMCMCsteps, burn_in):
         # Metropolis-Hastings parameter updates
         params_all_new = copy.copy(params_all)
         for i in range(0, nvox):
-            for p in range(3):
+            for p in range(5):
                 # sample parameter
-                params_all_new[p, i] = np.random.normal(params_all[p, i], w[p])
+                if p <= 2:    # Dpar, Diso, fpar
+                    params_all_new[p, i] = np.random.normal(params_all[p, i], w[p])
+                elif p == 3:  # stick orientation (theta)
+                    u = np.random.uniform(0, 1, 1)
+                    params_all_new[p, i] = np.arccos(1 - 2*u)
+                elif p == 4:  # stick orientation (phi)
+                    u = np.random.uniform(0, 1, 1)
+                    params_all_new[p, i] = 2 * np.pi * u
 
                 # compute acceptance
                 y_i = copy.copy(E_sim[i, ])  # actual measured signal
