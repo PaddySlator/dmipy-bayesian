@@ -167,7 +167,7 @@ def run_optimization(params_all, E_sim, E_fit, nvox, nMCMCsteps, burn_in):
     sigma = np.cov(params_all)
 
     # initial weights for Metropolis-Hastings parameter sampling (f, D, D* from Orton, orientations guessed)
-    w = [.2, .5, .5, .1, .1]
+    w = [.5, .5, .5, .1, .1]
 
     T = compute_temp_schedule(2000, 10 ** -3, nMCMCsteps)
 
@@ -286,15 +286,17 @@ def main():
     E_fit = copy.copy(E_fit_init)
 
     nMCMCsteps = 1000
-    burn_in = 500
+    burn_in = 600
     Proc_start = time.time()
     Acceptance_rate, param_conv, params_all_new = run_optimization(params_all, E_sim, E_fit, nvox, nMCMCsteps, burn_in)
     Compute_time(Proc_start, time.time())
 
     # print: initalisation, correct value, Bayes-fitted value
-    print((params_all_init[0, 0], params_all_correct[0, 0], params_all_new[0, 0]))
-    print((params_all_init[1, 0], params_all_correct[1, 0], params_all_new[1, 0]))
-    print((params_all_init[2, 0], params_all_correct[2, 0], params_all_new[2, 0]))
+    print((params_all_init[0, 0], params_all_correct[0, 0], np.mean(param_conv[0, burn_in:-1])))
+    print((params_all_init[1, 0], params_all_correct[1, 0], np.mean(param_conv[1, burn_in:-1])))
+    print((params_all_init[2, 0], params_all_correct[2, 0], np.mean(param_conv[2, burn_in:-1])))
+    print((params_all_init[3, 0], params_all_correct[3, 0], np.mean(param_conv[3, burn_in:-1])))
+    print((params_all_init[4, 0], params_all_correct[4, 0], np.mean(param_conv[4, burn_in:-1])))
 
     # plot parameter convergence
     color = 'tab:blue'
