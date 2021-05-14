@@ -68,8 +68,8 @@ def load_data():
     stick_ori = (np.pi, 0)
 
     # simulate a simple 10x10 image
-    dimx = 10
-    dimy = 10
+    dimx = 11
+    dimy = 11
     nvox = dimx * dimy
 
     Dpar_sim = np.zeros((dimx, dimy))
@@ -127,7 +127,14 @@ def load_data():
     params_all[0, 0] = 10e-9  # Dpar
     params_all[1, 0] = 10e-9  # Diso_sim[x, y]
     params_all[2, 0] = .5     # fpar_sim[x, y]
-    return params_all, E_sim, E_fit, nvox, params_all_correct
+
+    # create mask with regional ROIs
+    mask = np.ones([dimx, dimy])
+    nx = int(np.round(dimx/4))
+    ny = int(np.round(dimy/4))
+    mask[nx:dimx-nx, ny:dimy-ny] = 2
+
+    return params_all, E_sim, E_fit, nvox, params_all_correct, mask
 
 
 def tform_params(params_all, direction):
@@ -157,7 +164,7 @@ def scale_params(params_all, direction):
     return params_all
 
 
-def run_optimization(params_all, E_sim, E_fit, nvox, nMCMCsteps, burn_in):
+def run_optimization(params_all, E_sim, E_fit, nvox, nMCMCsteps, burn_in, mask, model):
     acq_scheme, nmeas, stick, ball, ballstick = sign_par()
 
     # log transform variables (non-orientation only) (original -> log)
@@ -231,12 +238,8 @@ def run_optimization(params_all, E_sim, E_fit, nvox, nMCMCsteps, burn_in):
                 likelihood_new = (-nmeas / 2) * np.log(np.inner(y_i, y_i) -
                                                        (np.inner(y_i, g_i_new) ** 2 / np.inner(g_i_new, g_i_new)))
 
-                if p <= 2:  # non-orientation parameters
-                    prior = np.log(scipy.stats.multivariate_normal.pdf(params_all[:, i], mu, sigma, allow_singular=1))
-                    prior_new = np.log(scipy.stats.multivariate_normal.pdf(params_all_new[:, i], mu, sigma, allow_singular=1))
-                else:  # orientation parameters (Chris to modify) (scaling here?)
-                    prior = 1
-                    prior_new = 1
+                prior = np.log(scipy.stats.multivariate_normal.pdf(params_all[:, i], mu, sigma, allow_singular=1))
+                prior_new = np.log(scipy.stats.multivariate_normal.pdf(params_all_new[:, i], mu, sigma, allow_singular=1))
 
                 alpha = np.min([0, (likelihood_new + prior_new) - (likelihood + prior)])
                 r = np.log(np.random.uniform(0, 1))
@@ -275,7 +278,7 @@ def run_optimization(params_all, E_sim, E_fit, nvox, nMCMCsteps, burn_in):
 
 
 def main():
-    params_all, E_sim, E_fit, nvox, params_all_correct = load_data()
+    params_all, E_sim, E_fit, nvox, params_all_correct, mask = load_data()
 
     params_all_init = copy.copy(params_all)
     E_sim_init = copy.copy(E_sim)
@@ -288,7 +291,7 @@ def main():
     nMCMCsteps = 1000
     burn_in = 600
     Proc_start = time.time()
-    Acceptance_rate, param_conv, params_all_new = run_optimization(params_all, E_sim, E_fit, nvox, nMCMCsteps, burn_in)
+    Acceptance_rate, param_conv, params_all_new = run_optimization(params_all, E_sim, E_fit, nvox, nMCMCsteps, burn_in, mask)
     Compute_time(Proc_start, time.time())
 
     # print: initalisation, correct value, Bayes-fitted value
