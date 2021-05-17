@@ -1,245 +1,203 @@
-# load some necessary modules
-from dmipy.core import modeling_framework
-from os.path import join
 import numpy as np
-import scipy.stats
 import copy
-import matplotlib.pyplot as plt
-import time
-import math
-
-# load HCP acqusition scheme
-from dmipy.data import saved_acquisition_schemes
-
-# ball stick and spherical mean ball-stick model
-from dmipy.signal_models import cylinder_models, gaussian_models
-from dmipy.core.modeling_framework import MultiCompartmentSphericalMeanModel, MultiCompartmentModel
+import scipy
+from dmipy.core import modeling_framework
 
 
-# Make axes square
-def make_square_axes(ax):
-    ax.set_aspect(1 / ax.get_data_ratio())
-
-
-# update figure font size
-def update_font_size_all(plt, ax, fontsz, legend=1, cbar=1):
-    for item in ([ax.title, ax.xaxis.label, ax.yaxis.label] +
-                 ax.get_xticklabels() + ax.get_yticklabels()):
-        item.set_fontsize(fontsz)
-    if legend:
-        ax.legend(fontsize=fontsz)
-    if cbar:
-        cb = plt.colorbar()
-        cb.ax.tick_params(labelsize=fontsz)
-
-
-def Compute_time(start, end):
-    hours, rem = divmod(end - start, 3600)
-    minutes, seconds = divmod(rem, 60)
-    print("/nTOTAL OPTIMIZATION TIME {:0>2}:{:0>2}:{:05.2f}".format(int(hours), int(minutes), seconds))
-    time_string = ("TOTAL TIME {:0>2}:{:0>2}:{:05.2f}".format(int(hours), int(minutes), seconds))
-    return time_string
-
-
-def compute_temp_schedule(startTemp, endTemp, MAX_ITER):
-    SA_schedule = []
-    it = np.arange(MAX_ITER + 1)
-    SA_schedule.append([-math.log(endTemp / startTemp) / i for i in it])
-    return SA_schedule[0]
-
-
-def sign_par():
-    acq_scheme = saved_acquisition_schemes.wu_minn_hcp_acquisition_scheme()
-    nmeas = len(acq_scheme.bvalues)
-
-    stick = cylinder_models.C1Stick()
-    ball = gaussian_models.G1Ball()
-    ballstick = MultiCompartmentModel(models=[stick, ball])
-    return acq_scheme, nmeas, stick, ball, ballstick
-
-
-def load_data():
-    acq_scheme, nmeas, stick, ball, ballstick = sign_par()
-    # baseline parameters for the simulated ball-stick voxel
-    Dpar = 1.7e-9  # in m^2/s
-    Diso = 2.5e-9  # in m^2/s
-    fpar = 0.3
-    # fiso = 1-fpar
-    stick_ori = (np.pi, 0)
-
-    # simulate a simple 10x10 image
-    dimx = 11
-    dimy = 11
-    nvox = dimx * dimy
-
-    Dpar_sim = np.zeros((dimx, dimy))
-    Diso_sim = np.zeros((dimx, dimy))
-    fpar_sim = np.zeros((dimx, dimy))
-    stick_ori_sim = np.zeros((dimx, dimy, 2))
-    E_sim = np.zeros((dimx, dimy, nmeas))
-    E_fit = np.zeros((dimx, dimy, nmeas))
-    for x in range(0, dimx):
-        for y in range(0, dimy):
-            # vary parameters
-            Dpar_sim[x, y] = Dpar + np.random.normal(0, 0.1e-9)
-            Diso_sim[x, y] = Diso + np.random.normal(0, 0.1e-9)
-            fpar_sim[x, y] = fpar + np.random.normal(0, 0.1)
-            stick_ori_sim[x, y, :] = stick_ori + np.random.normal(0, 0.1, (1, 2))
-            # generate signal
-            parameter_vector = ballstick.parameters_to_parameter_vector(
-                C1Stick_1_mu=stick_ori_sim[x, y,],
-                C1Stick_1_lambda_par=Dpar_sim[x, y],
-                G1Ball_1_lambda_iso=Diso_sim[x, y],
-                partial_volume_0=fpar_sim[x, y],
-                partial_volume_1=1 - fpar_sim[x, y])
-            E_sim[x, y, :] = ballstick.simulate_signal(acq_scheme, parameter_vector) + np.random.normal(0, .01)
-            E_fit[x, y, :] = ballstick.fit(acq_scheme, E_sim[x, y,]).predict()
-
-    E_sim = np.reshape(E_sim, (nvox, nmeas))  # flatten signal to get [nvox x nmeas] array
-    E_fit = np.reshape(E_fit, (nvox, nmeas))  # flatten signal to get [nvox x nmeas] array
-
-    # TO DO: should be from LSQs fit - cheat and use GT for now
-    # initial voxel-wise estimates
-    Dpar_init = Dpar_sim
-    Diso_init = Diso_sim
-    fpar_init = fpar_sim
-    fiso_init = 1 - fpar_sim
-    stick_ori_init = stick_ori_sim
-
-    # flatten params to get [5 x nvox] array
-    params_all_correct = np.array([np.ndarray.flatten(Dpar_init),
-                                   np.ndarray.flatten(Diso_init),
-                                   np.ndarray.flatten(fpar_init),
-                                   np.ndarray.flatten(stick_ori_init[:, :, 0]),
-                                   np.ndarray.flatten(stick_ori_init[:, :, 1])])
-    params_all = copy.copy(params_all_correct)
-
-    # TEST: perturb non-orientation variables
-    x = 0
-    y = 0
-    parameter_vector = ballstick.parameters_to_parameter_vector(
-        C1Stick_1_mu=stick_ori_sim[x, y],
-        C1Stick_1_lambda_par=10e-9, # Dpar_sim[x, y],
-        G1Ball_1_lambda_iso=10e-9,  # Diso_sim[x, y],
-        partial_volume_0=.5,        # fpar_sim[x, y],
-        partial_volume_1=1 - fpar_sim[x, y])
-    E_fit[0, :] = ballstick.simulate_signal(acq_scheme, parameter_vector)
-    params_all[0, 0] = 10e-9  # Dpar
-    params_all[1, 0] = 10e-9  # Diso_sim[x, y]
-    params_all[2, 0] = .5     # fpar_sim[x, y]
-
-    # create mask with regional ROIs
-    mask = np.ones([dimx, dimy])
-    nx = int(np.round(dimx/4))
-    ny = int(np.round(dimy/4))
-    mask[nx:dimx-nx, ny:dimy-ny] = 2
-
-    return params_all, E_sim, E_fit, nvox, params_all_correct, mask
-
-
-def tform_params(params_all, direction):
+# FIXME: sigmoid transform for all parameters?
+def tform_params(param_dict, model, direction):
     if direction == 'f':
-        params_all[0, :] = np.log(params_all[0, :])
-        params_all[1, :] = np.log(params_all[1, :])
-        params_all[2, :] = np.log(params_all[2, :]) - np.log(1 - params_all[2, :])
+        for param in model.parameter_names:
+            if 'partial_volume_' in param:
+                param_dict[param] = np.log(param_dict[param]) - np.log(1 - param_dict[param])
+            elif '_mu' in param:
+                # do nothing
+                param_dict[param] = param_dict[param]
+            else:
+                param_dict[param] = np.log(param_dict[param])
 
     elif direction == 'r':
-        params_all[0, :] = np.exp(params_all[0, :])
-        params_all[1, :] = np.exp(params_all[1, :])
-        params_all[2, :] = np.exp(params_all[2, :]) / (1 + np.exp(params_all[2, :]))
-        params_all[2, :] = [1 if np.isnan(x) else x for x in params_all[2, :]]
+        for param in model.parameter_names:
+            if 'partial_volume_' in param:
+                param_dict[param] = np.exp(param_dict[param]) / (1 + np.exp(param_dict[param]))
+                param_dict[param] = [1 if np.isnan(x) else x for x in param_dict[param]]
+            elif '_mu' in param:
+                # do nothing
+                param_dict[param] = param_dict[param]
+            else:
+                param_dict[param] = np.exp(param_dict[param])
 
-    return params_all
-
-
-def scale_params(params_all, direction):
-    if direction == 'f':
-        params_all[0, :] = params_all[0, :] * 1e9
-        params_all[1, :] = params_all[1, :] * 1e9
-
-    elif direction == 'r':
-        params_all[0, :] = params_all[0, :] * 1e-9
-        params_all[1, :] = params_all[1, :] * 1e-9
-
-    return params_all
+    return param_dict
 
 
-def run_optimization(params_all, E_sim, E_fit, nvox, nMCMCsteps, burn_in, mask, model):
-    acq_scheme, nmeas, stick, ball, ballstick = sign_par()
+# FIXME: existing dmipy fnc that does this? (model.parameters_to_parameter_vector)
+def dict_to_array(model, param_dict):
+    # create array of LSQ fit values
+    all_model_param_names = '\t'.join(model.parameter_names)
+    n_orient_params = all_model_param_names.count('_mu')
+    nparams = len(model.parameter_names) + n_orient_params  # no. parameters, accounting for both orientations
+    nvox = param_dict[model.parameter_names[0]].shape[0]
 
-    # log transform variables (non-orientation only) (original -> log)
-    params_all = tform_params(params_all, 'f')
+    param_array = np.empty([nparams, nvox])
+    partial_volume_index = []  # find the positions that are volume fractions
+    l = 0
+    for param in model.parameter_names:
+        if '_mu' in param:  # if an orientation parameter
+            param_array[l:l + 2, :] = np.transpose(param_dict[param])
+            l = l + 2
+        elif 'partial_volume_' in param:
+            partial_volume_index.append(l)  # need to know the index of volume fractions for the MH proposal step
+            param_array[l, :] = np.transpose(param_dict[param])
+            l = l + 1
+        else:
+            param_array[l, :] = np.transpose(param_dict[param])
+            l = l + 1
+
+    return param_array
+
+
+# FIXME: existing dmipy fnc that does this? (model.parameter_vector_to_parameters)
+def array_to_dict(model, param_array):
+    l = 0
+    param_dict = dict.fromkeys(model.parameter_names)
+    # FIXME: remove this harcoding once no. compartments fix sorted (line ~223)
+    for param in model.parameter_names[0:param_array.shape[0]-1]:
+        if '_mu' in param:  # if an orientation parameter
+            # two maps in the final dimension
+            this_param_map = np.zeros((np.shape(param_array)[1], 2))
+            this_param_map[:, 0] = param_array[l, :]
+            this_param_map[:, 1] = param_array[l + 1, :]
+            param_dict[param] = this_param_map
+            l = l + 2
+        else:
+            this_param_map = param_array[l, :]
+            param_dict[param] = this_param_map
+            l = l + 1
+
+    return param_dict
+
+
+# FIXME: set defaults for nsteps, burn_in and mask?
+def fit_bayes(model, acq_scheme, data, nsteps, burn_in, mask):
+    # extract some useful values
+    nvox = np.sum(mask)  # number of voxels in mask
+    all_model_param_names = '\t'.join(model.parameter_names)
+    n_orient_params = all_model_param_names.count('_mu')
+    nparams = len(model.parameter_names) + n_orient_params  # no. parameters, accounting for both orientations
+    ndw = len(acq_scheme.bvalues)
+
+    # do initial LQS fit for parameter initialisation
+    lsq_fit = model.fit(acq_scheme, data, mask=mask)
+
+    # create dictionary of model parameter names and LSQ fit values
+    # FIXME: only need to fit no. compartments - 1 'partial_volume_' parameters
+    init_param = dict.fromkeys(model.parameter_names)
+    for param in model.parameter_names:
+        init_param[param] = lsq_fit.fitted_parameters[param][mask]
+
+    # perturb params for testing
+    init_param[model.parameter_names[1]][0] = 10e-9  # Dpar
+    init_param[model.parameter_names[2]][0] = 10e-9  # Diso
+    #init_param[model.parameter_names[3]][0] = .5     # fpar
+
+    # FIXME: prob want to keep as dictionary - would help with identifying orientation params in MCMC loop
+    # create array of LSQ fit values, original values
+    params_all_orig = dict_to_array(model, init_param)
+    # create array of LSQ fit values, log transform variables (non-orientation only) (original -> log)
+    params_all_tform = dict_to_array(model, tform_params(init_param, model, 'f'))
 
     # initialise sigma
-    sigma = np.cov(params_all)
+    # FIXME: remove hardcoding of [0:nparams-1, :] once no. compartments fix sorted (line ~223)
+    sigma = np.cov(params_all_tform[0:nparams-1, :])
 
     # initial weights for Metropolis-Hastings parameter sampling (f, D, D* from Orton, orientations guessed)
-    w = [.5, .5, .5, .1, .1]
+    # FIXME: calculate using parameter ranges
+    # w = [.5, .5, .5, .1, .1]
+    w = [.1, .1, .5, .5, .5]  # ori, ori, Dpar, Diso, fpar
 
-    T = compute_temp_schedule(2000, 10 ** -3, nMCMCsteps)
+    # measured signals
+    E_dat = data[mask]
 
-    accepted = np.zeros((w.__len__()))          # count total accepted moves for each param
-    accepted_per_100 = np.zeros((w.__len__()))  # track accepted moves for each param per 100 steps (to update weights)
-    acceptance_rate = np.zeros([(w.__len__()), nMCMCsteps])   # track accepted moves for each param at each step
+    # initial LSQ-estimated signals
+    # FIXME: need to mask E_fit
+    E_fit = np.zeros((nvox, ndw))
+    for i in range(nvox):
+        parameter_vector = params_all_orig[:, i]
+        E_fit[i, :] = model.simulate_signal(acq_scheme, parameter_vector)
 
-    param_conv = np.zeros((5, nMCMCsteps))  # track parameter convergence
-    tmpgibbs = np.zeros((5, nMCMCsteps))
+    # FIXME: maybe need to deal with nparams-1 once generalised for >2 compartments
+    accepted = np.zeros(nparams-1)          # count total accepted moves for each param
+    accepted_per_100 = np.zeros(nparams-1)  # track accepted moves for each param per 100 steps (to update weights)
+    acceptance_rate = np.zeros([nparams-1, nsteps])   # track accepted moves for each param at each step
+
+    # FIXME: need to track all parameter values at each step for a posterior distribution (currently tracking 1 voxel)
+    # FIXME: also need to store final mu and sigma
+    param_conv = np.zeros((nparams-1, nsteps))  # track parameter convergence
+    tmpgibbs = np.zeros((nparams-1, nsteps))
+
+    # FIXME: add in loop for different ROIs (version in bayesian-fitting-toy-example.py)
 
     # NB i (voxel loop) and j (MC loop) in keeping with Orton paper
-    for j in range(0, nMCMCsteps):
+    for j in range(0, nsteps):
         print(j)
         it = j + 1
         # Gibbs moves to update priors
         # sample mu from multivariate normal distribution defined by current parameter estimates
-        m = np.mean(params_all, axis=1)
+        # FIXME: remove hardcoding of [0:nparams-1, :] once generalised for >2 compartments
+        m = np.mean(params_all_tform[0:nparams-1, :], axis=1)
         V = sigma / nvox
         mu = np.random.multivariate_normal(m, V)
 
         # sample sigma from inverse Wishart distribution (using newly updated mu)
         # NB scaled parameters used in calculation of priors in Metropolis-Hastings updates
-        phi = np.sum([np.outer(params_all[:, i] - mu,
-                               params_all[:, i] - mu)
+        # FIXME: remove hardcoding of [0:nparams-1, :] once generalised for >2 compartments
+        phi = np.sum([np.outer(params_all_tform[0:nparams-1, i] - mu,
+                               params_all_tform[0:nparams-1, i] - mu)
                       for i in range(0, nvox)], axis=0)
-        sigma = scipy.stats.invwishart(scale=phi, df=nvox - 5).rvs()
+        sigma = scipy.stats.invwishart(scale=phi, df=nvox - nparams).rvs()
 
         # Metropolis-Hastings parameter updates
-        params_all_new = copy.copy(params_all)
+        params_all_new = copy.copy(params_all_tform)
         for i in range(0, nvox):
-            for p in range(5):
+            # FIXME: order of parameter loop affects convergence (?!)
+            for p in [2, 3, 4, 0, 1]:  # range(nparams-1):
+                # FIXME: use parameter names
                 # sample parameter
-                if p <= 2:    # Dpar, Diso, fpar
-                    params_all_new[p, i] = np.random.normal(params_all[p, i], w[p])
-                elif p == 3:  # stick orientation (theta)
+                if p == 0:  # stick orientation (theta)
                     u = np.random.uniform(0, 1, 1)
                     params_all_new[p, i] = np.arccos(1 - 2*u)
-                elif p == 4:  # stick orientation (phi)
+                elif p == 1:  # stick orientation (phi)
                     u = np.random.uniform(0, 1, 1)
                     params_all_new[p, i] = 2 * np.pi * u
+                elif p == 2 or p == 3:    # Dpar, Diso
+                    params_all_new[p, i] = np.random.normal(params_all_tform[p, i], w[p])
+                elif p == 4:
+                    # FIXME: generalise for >2 compartments
+                    params_all_new[p, i] = np.random.normal(params_all_tform[p, i], w[p])
+                    params_all_new[p+1, i] = 1 - params_all_new[p, i]
+
+                #if i == 0 and p == 2:
+                #    tmp1 = copy.copy(params_all_tform[p, i])
+                #    tmp2 = copy.copy(params_all_new[p, i])
 
                 # compute acceptance
-                y_i = copy.copy(E_sim[i, ])  # actual measured signal
+                y_i = copy.copy(E_dat[i, ])  # actual measured signal
                 g_i = copy.copy(E_fit[i, ])  # model-predicted signal (old params)
 
-                params_all_new = tform_params(params_all_new, 'r')  # revert transform for signal calc (log -> original)
-                if i == 0:
-                    print([j, i, p, params_all_new[[0, 1, 2], i]])
-                parameter_vector = ballstick.parameters_to_parameter_vector(
-                                    C1Stick_1_mu=[params_all_new[3, i], params_all_new[4, i]],
-                                    C1Stick_1_lambda_par=params_all_new[0, i],
-                                    G1Ball_1_lambda_iso=params_all_new[1, i],
-                                    partial_volume_0=params_all_new[2, i],
-                                    partial_volume_1=1 - params_all_new[2, i])
-                g_i_new = ballstick.simulate_signal(acq_scheme, parameter_vector)  # model-predicted signal (new params)
-                params_all_new = tform_params(params_all_new, 'f')  # redo transform (original -> log)
+                params_all_new = dict_to_array(model, tform_params(array_to_dict(model, params_all_new), model, 'r'))  # revert transform for signal calc (log -> original)
+                parameter_vector = params_all_new[:, i]
+                g_i_new = model.simulate_signal(acq_scheme, parameter_vector)  # model-predicted signal (new params)
+                params_all_new = dict_to_array(model, tform_params(array_to_dict(model, params_all_new), model, 'f'))  # redo transform (original -> log)
 
                 # calculate posteriors and PDFs (log scale)
-                likelihood = (-nmeas / 2) * np.log(np.inner(y_i, y_i) -
-                                                   ((np.inner(y_i, g_i)) ** 2 / np.inner(g_i, g_i)))
-                likelihood_new = (-nmeas / 2) * np.log(np.inner(y_i, y_i) -
-                                                       (np.inner(y_i, g_i_new) ** 2 / np.inner(g_i_new, g_i_new)))
+                likelihood = (-ndw / 2) * np.log(np.inner(y_i, y_i) -
+                                                 ((np.inner(y_i, g_i)) ** 2 / np.inner(g_i, g_i)))
+                likelihood_new = (-ndw / 2) * np.log(np.inner(y_i, y_i) -
+                                                     ((np.inner(y_i, g_i_new)) ** 2 / np.inner(g_i_new, g_i_new)))
 
-                prior = np.log(scipy.stats.multivariate_normal.pdf(params_all[:, i], mu, sigma, allow_singular=1))
-                prior_new = np.log(scipy.stats.multivariate_normal.pdf(params_all_new[:, i], mu, sigma, allow_singular=1))
+                # FIXME: remove hardcoding of [0:nparams-1, :] once no. compartments fix sorted (line ~223)
+                prior = np.log(scipy.stats.multivariate_normal.pdf(params_all_tform[0:nparams-1, i], mu, sigma, allow_singular=1))
+                prior_new = np.log(scipy.stats.multivariate_normal.pdf(params_all_new[0:nparams-1, i], mu, sigma, allow_singular=1))
 
                 alpha = np.min([0, (likelihood_new + prior_new) - (likelihood + prior)])
                 r = np.log(np.random.uniform(0, 1))
@@ -248,8 +206,9 @@ def run_optimization(params_all, E_sim, E_fit, nvox, nMCMCsteps, burn_in, mask, 
                 if r < alpha:
                     accepted[p] += 1
                     accepted_per_100[p] += 1
-                    params_all[p, i] = copy.copy(params_all_new[p, i])
+                    params_all_tform[p, i] = copy.copy(params_all_new[p, i])
                     E_fit[i, ] = copy.copy(g_i_new)
+                    # FIXME: add this back in
                 #            else:
                 #                if Accepted / (it * nvox) < 0.23:
                 #                    continue
@@ -258,112 +217,24 @@ def run_optimization(params_all, E_sim, E_fit, nvox, nMCMCsteps, burn_in, mask, 
 
                 # for plotting
                 if i == 0:
-                    param_conv[p, j] = copy.copy(params_all[p, i])
-                    tmpgibbs[:, j] = copy.copy(mu)
+                    param_conv[p, j] = copy.copy(params_all_tform[p, i])
+                    #if p == 2:
+                    #    print((np.exp(tmp1), np.exp(tmp2), np.exp(param_conv[p, j])))
+                    # FIXME: remove hardcoding of [0:nparams-1, :] once no. compartments fix sorted (line ~223)
+                    tmpgibbs[0:nparams-1, j] = copy.copy(mu)
 
                 # acceptance_rate.append(accepted / (it * nvox))
                 acceptance_rate[p, j] = accepted[p] / (it * nvox)
 
-                # TO DO: update weights every 100 steps
-        if np.remainder(j, 100) == 0 and j < burn_in/2:
-            # w = [v * ( 51/(2*(51 - w_acc/(it*nvox*5))) ) for v in w]
+                #if i == 0 and p == 2:
+                #    print([w[p], accepted_per_100[p]])
+
+        if np.remainder(j, 100) == 0 and 0 < j <= burn_in / 2:
             w = w * (101 / (2 * (101-(accepted_per_100/nvox))))
             accepted_per_100 = np.zeros((w.__len__()))
-            #print(w)
 
-    params_all = tform_params(params_all, 'r')
-    param_conv = tform_params(param_conv, 'r')
+    params_all = dict_to_array(model, tform_params(array_to_dict(model, params_all_new), model, 'r'))
+    # FIXME: don't hardcode calculation of last compartment fraction
+    # param_conv = dict_to_array(model, tform_params(array_to_dict(model, param_conv), model, 'r'))
 
     return acceptance_rate, param_conv, params_all
-
-
-def main():
-    params_all, E_sim, E_fit, nvox, params_all_correct, mask = load_data()
-
-    params_all_init = copy.copy(params_all)
-    E_sim_init = copy.copy(E_sim)
-    E_fit_init = copy.copy(E_fit)
-
-    params_all = copy.copy(params_all_init)
-    E_sim = copy.copy(E_sim_init)
-    E_fit = copy.copy(E_fit_init)
-
-    nMCMCsteps = 1000
-    burn_in = 600
-    Proc_start = time.time()
-    Acceptance_rate, param_conv, params_all_new = run_optimization(params_all, E_sim, E_fit, nvox, nMCMCsteps, burn_in, mask)
-    Compute_time(Proc_start, time.time())
-
-    # print: initalisation, correct value, Bayes-fitted value
-    print((params_all_init[0, 0], params_all_correct[0, 0], np.mean(param_conv[0, burn_in:-1])))
-    print((params_all_init[1, 0], params_all_correct[1, 0], np.mean(param_conv[1, burn_in:-1])))
-    print((params_all_init[2, 0], params_all_correct[2, 0], np.mean(param_conv[2, burn_in:-1])))
-    print((params_all_init[3, 0], params_all_correct[3, 0], np.mean(param_conv[3, burn_in:-1])))
-    print((params_all_init[4, 0], params_all_correct[4, 0], np.mean(param_conv[4, burn_in:-1])))
-
-    # plot parameter convergence
-    color = 'tab:blue'
-    fig, ax = plt.subplots()
-    ax.set_ylabel("Dpar", color=color)
-    ax.set_xlabel("MCMC iteration", color=color)
-    ax.scatter(range(nMCMCsteps), param_conv[0, :])
-    update_font_size_all(plt, ax, 20, legend=0, cbar=0)
-    make_square_axes(ax)
-
-    fig, ax = plt.subplots()
-    ax.set_ylabel("Diso", color=color)
-    ax.set_xlabel("MCMC iteration", color=color)
-    ax.scatter(range(nMCMCsteps), param_conv[1, :])
-    update_font_size_all(plt, ax, 20, legend=0, cbar=0)
-    make_square_axes(ax)
-
-    fig, ax = plt.subplots()
-    ax.set_ylabel("fpar", color=color)
-    ax.set_xlabel("MCMC iteration", color=color)
-    ax.scatter(range(nMCMCsteps), param_conv[2, :])
-    update_font_size_all(plt, ax, 20, legend=0, cbar=0)
-    make_square_axes(ax)
-
-    # plot parameter distributions after burn-in period
-    fig, ax = plt.subplots()
-    ax.set_ylabel("freq", color=color)
-    ax.set_xlabel("Dpar", color=color)
-    ax.hist(param_conv[0, burn_in:-1], bins=50)
-    update_font_size_all(plt, ax, 20, legend=0, cbar=0)
-    make_square_axes(ax)
-
-    fig, ax = plt.subplots()
-    ax.set_ylabel("freq", color=color)
-    ax.set_xlabel("Diso", color=color)
-    ax.hist(param_conv[1, burn_in:-1], bins=50)
-    update_font_size_all(plt, ax, 20, legend=0, cbar=0)
-    make_square_axes(ax)
-
-    fig, ax = plt.subplots()
-    ax.set_ylabel("freq", color=color)
-    ax.set_xlabel("fpar", color=color)
-    ax.hist(param_conv[2, burn_in:-1], bins=50)
-    update_font_size_all(plt, ax, 20, legend=0, cbar=0)
-    make_square_axes(ax)
-
-    tmpim = np.reshape(params_all_correct, (5, 10, 10))
-    fig, ax = plt.subplots()
-    plt.title('D stick')
-    plt.imshow(tmpim[0, :, :])
-    update_font_size_all(plt, ax, 20, legend=0, cbar=1)
-    ax.set_xticklabels([])
-    ax.set_yticklabels([])
-
-    # plot acceptance rate
-    fig, ax = plt.subplots()
-    color = 'tab:blue'
-    ax.set_ylabel("Acceptance Rate", color=color)
-    ax.plot(np.arange(len(Acceptance_rate)), Acceptance_rate, marker=",", color=color)
-    ax.tick_params(axis='y', labelcolor=color)
-    plt.tight_layout()
-    plt.show()
-
-
-
-if __name__ == '__main__':
-    main()

@@ -67,10 +67,16 @@ def load_data():
     # fiso = 1-fpar
     stick_ori = (np.pi, 0)
 
-    # simulate a simple 10x10 image
+    # simulate a simple 11x11 image
     dimx = 11
     dimy = 11
     nvox = dimx * dimy
+
+    # create mask with regional ROIs
+    mask = np.ones([dimx, dimy])
+    nx = int(np.round(dimx/4))
+    ny = int(np.round(dimy/4))
+    mask[nx:dimx-nx, ny:dimy-ny] = 2
 
     Dpar_sim = np.zeros((dimx, dimy))
     Diso_sim = np.zeros((dimx, dimy))
@@ -81,9 +87,13 @@ def load_data():
     for x in range(0, dimx):
         for y in range(0, dimy):
             # vary parameters
-            Dpar_sim[x, y] = Dpar + np.random.normal(0, 0.1e-9)
-            Diso_sim[x, y] = Diso + np.random.normal(0, 0.1e-9)
-            fpar_sim[x, y] = fpar + np.random.normal(0, 0.1)
+            Dpar_sim[x, y] = (Dpar + np.random.normal(0, 0.1e-9)) * mask[x, y]
+            Diso_sim[x, y] = (Diso + np.random.normal(0, 0.1e-9)) * mask[x, y]
+            fpar_sim[x, y] = (fpar + np.random.normal(0, 0.1)) * mask[x, y]
+            #if fpar_sim[x, y] < 0:  # make sure 0 < f < 1
+            #    fpar_sim[x, y] = 0.01
+            #elif fpar_sim[x, y] > 0:  # make sure 0 < f < 1
+            #    fpar_sim[x, y] = 0.99
             stick_ori_sim[x, y, :] = stick_ori + np.random.normal(0, 0.1, (1, 2))
             # generate signal
             parameter_vector = ballstick.parameters_to_parameter_vector(
@@ -128,11 +138,7 @@ def load_data():
     params_all[1, 0] = 10e-9  # Diso_sim[x, y]
     params_all[2, 0] = .5     # fpar_sim[x, y]
 
-    # create mask with regional ROIs
-    mask = np.ones([dimx, dimy])
-    nx = int(np.round(dimx/4))
-    ny = int(np.round(dimy/4))
-    mask[nx:dimx-nx, ny:dimy-ny] = 2
+    mask = mask.flatten()  # flatten signal to get [nvox x 1] array
 
     return params_all, E_sim, E_fit, nvox, params_all_correct, mask
 
@@ -164,7 +170,7 @@ def scale_params(params_all, direction):
     return params_all
 
 
-def run_optimization(params_all, E_sim, E_fit, nvox, nMCMCsteps, burn_in, mask, model):
+def run_optimization(params_all, E_sim, E_fit, nvox, nMCMCsteps, burn_in, mask):
     acq_scheme, nmeas, stick, ball, ballstick = sign_par()
 
     # log transform variables (non-orientation only) (original -> log)
@@ -185,91 +191,98 @@ def run_optimization(params_all, E_sim, E_fit, nvox, nMCMCsteps, burn_in, mask, 
     param_conv = np.zeros((5, nMCMCsteps))  # track parameter convergence
     tmpgibbs = np.zeros((5, nMCMCsteps))
 
-    # NB i (voxel loop) and j (MC loop) in keeping with Orton paper
-    for j in range(0, nMCMCsteps):
-        print(j)
-        it = j + 1
-        # Gibbs moves to update priors
-        # sample mu from multivariate normal distribution defined by current parameter estimates
-        m = np.mean(params_all, axis=1)
-        V = sigma / nvox
-        mu = np.random.multivariate_normal(m, V)
+    roi_vals = np.unique(mask)  # list of unique integers that identify each ROI
+    nroi = roi_vals.shape[0]  # no. ROIs
 
-        # sample sigma from inverse Wishart distribution (using newly updated mu)
-        # NB scaled parameters used in calculation of priors in Metropolis-Hastings updates
-        phi = np.sum([np.outer(params_all[:, i] - mu,
-                               params_all[:, i] - mu)
-                      for i in range(0, nvox)], axis=0)
-        sigma = scipy.stats.invwishart(scale=phi, df=nvox - 5).rvs()
+    for r in range(nroi):
+        roi_idx = [xx for xx, x in enumerate(mask == roi_vals[r]) if x]  # indices into mask of voxels in ROI
+        roi_nvox = roi_idx.__len__()  # no. voxels in ROI
 
-        # Metropolis-Hastings parameter updates
-        params_all_new = copy.copy(params_all)
-        for i in range(0, nvox):
-            for p in range(5):
-                # sample parameter
-                if p <= 2:    # Dpar, Diso, fpar
-                    params_all_new[p, i] = np.random.normal(params_all[p, i], w[p])
-                elif p == 3:  # stick orientation (theta)
-                    u = np.random.uniform(0, 1, 1)
-                    params_all_new[p, i] = np.arccos(1 - 2*u)
-                elif p == 4:  # stick orientation (phi)
-                    u = np.random.uniform(0, 1, 1)
-                    params_all_new[p, i] = 2 * np.pi * u
+        # NB i (voxel loop) and j (MC loop) in keeping with Orton paper
+        for j in range(0, nMCMCsteps):
+            print(j)
+            it = j + 1
+            # Gibbs moves to update priors
+            # sample mu from multivariate normal distribution defined by current parameter estimates
+            m = np.mean(params_all[:, roi_idx], axis=1)
+            V = sigma / roi_nvox
+            mu = np.random.multivariate_normal(m, V)
 
-                # compute acceptance
-                y_i = copy.copy(E_sim[i, ])  # actual measured signal
-                g_i = copy.copy(E_fit[i, ])  # model-predicted signal (old params)
+            # sample sigma from inverse Wishart distribution (using newly updated mu)
+            # NB scaled parameters used in calculation of priors in Metropolis-Hastings updates
+            phi = np.sum([np.outer(params_all[:, i] - mu,
+                                   params_all[:, i] - mu)
+                          for i in roi_idx], axis=0)
+            sigma = scipy.stats.invwishart(scale=phi, df=roi_nvox - 5).rvs()
 
-                params_all_new = tform_params(params_all_new, 'r')  # revert transform for signal calc (log -> original)
-                if i == 0:
-                    print([j, i, p, params_all_new[[0, 1, 2], i]])
-                parameter_vector = ballstick.parameters_to_parameter_vector(
-                                    C1Stick_1_mu=[params_all_new[3, i], params_all_new[4, i]],
-                                    C1Stick_1_lambda_par=params_all_new[0, i],
-                                    G1Ball_1_lambda_iso=params_all_new[1, i],
-                                    partial_volume_0=params_all_new[2, i],
-                                    partial_volume_1=1 - params_all_new[2, i])
-                g_i_new = ballstick.simulate_signal(acq_scheme, parameter_vector)  # model-predicted signal (new params)
-                params_all_new = tform_params(params_all_new, 'f')  # redo transform (original -> log)
+            # Metropolis-Hastings parameter updates
+            params_all_new = copy.copy(params_all)
+            for i in roi_idx:
+                for p in range(5):
+                    # sample parameter
+                    if p <= 2:    # Dpar, Diso, fpar
+                        params_all_new[p, i] = np.random.normal(params_all[p, i], w[p])
+                    elif p == 3:  # stick orientation (theta)
+                        u = np.random.uniform(0, 1, 1)
+                        params_all_new[p, i] = np.arccos(1 - 2*u)
+                    elif p == 4:  # stick orientation (phi)
+                        u = np.random.uniform(0, 1, 1)
+                        params_all_new[p, i] = 2 * np.pi * u
 
-                # calculate posteriors and PDFs (log scale)
-                likelihood = (-nmeas / 2) * np.log(np.inner(y_i, y_i) -
-                                                   ((np.inner(y_i, g_i)) ** 2 / np.inner(g_i, g_i)))
-                likelihood_new = (-nmeas / 2) * np.log(np.inner(y_i, y_i) -
-                                                       (np.inner(y_i, g_i_new) ** 2 / np.inner(g_i_new, g_i_new)))
+                    # compute acceptance
+                    y_i = copy.copy(E_sim[i, ])  # actual measured signal
+                    g_i = copy.copy(E_fit[i, ])  # model-predicted signal (old params)
 
-                prior = np.log(scipy.stats.multivariate_normal.pdf(params_all[:, i], mu, sigma, allow_singular=1))
-                prior_new = np.log(scipy.stats.multivariate_normal.pdf(params_all_new[:, i], mu, sigma, allow_singular=1))
+                    params_all_new = tform_params(params_all_new, 'r')  # revert transform for signal calc (log -> original)
+                    #if i == 0:
+                    #    print([j, i, p, params_all_new[[0, 1, 2], i]])
+                    parameter_vector = ballstick.parameters_to_parameter_vector(
+                                        C1Stick_1_mu=[params_all_new[3, i], params_all_new[4, i]],
+                                        C1Stick_1_lambda_par=params_all_new[0, i],
+                                        G1Ball_1_lambda_iso=params_all_new[1, i],
+                                        partial_volume_0=params_all_new[2, i],
+                                        partial_volume_1=1 - params_all_new[2, i])
+                    g_i_new = ballstick.simulate_signal(acq_scheme, parameter_vector)  # model-predicted signal (new params)
+                    params_all_new = tform_params(params_all_new, 'f')  # redo transform (original -> log)
 
-                alpha = np.min([0, (likelihood_new + prior_new) - (likelihood + prior)])
-                r = np.log(np.random.uniform(0, 1))
+                    # calculate posteriors and PDFs (log scale)
+                    likelihood = (-nmeas / 2) * np.log(np.inner(y_i, y_i) -
+                                                       ((np.inner(y_i, g_i)) ** 2 / np.inner(g_i, g_i)))
+                    likelihood_new = (-nmeas / 2) * np.log(np.inner(y_i, y_i) -
+                                                           (np.inner(y_i, g_i_new) ** 2 / np.inner(g_i_new, g_i_new)))
 
-                # reject new parameter value if criteria not met
-                if r < alpha:
-                    accepted[p] += 1
-                    accepted_per_100[p] += 1
-                    params_all[p, i] = copy.copy(params_all_new[p, i])
-                    E_fit[i, ] = copy.copy(g_i_new)
-                #            else:
-                #                if Accepted / (it * nvox) < 0.23:
-                #                    continue
-                #                    # print("Stopping criterion met {}".format(Accepted/(it*nvox)))
-                #                    # return Acceptance_rate
+                    prior = np.log(scipy.stats.multivariate_normal.pdf(params_all[:, i], mu, sigma, allow_singular=1))
+                    prior_new = np.log(scipy.stats.multivariate_normal.pdf(params_all_new[:, i], mu, sigma, allow_singular=1))
 
-                # for plotting
-                if i == 0:
-                    param_conv[p, j] = copy.copy(params_all[p, i])
-                    tmpgibbs[:, j] = copy.copy(mu)
+                    alpha = np.min([0, (likelihood_new + prior_new) - (likelihood + prior)])
+                    r = np.log(np.random.uniform(0, 1))
 
-                # acceptance_rate.append(accepted / (it * nvox))
-                acceptance_rate[p, j] = accepted[p] / (it * nvox)
+                    # reject new parameter value if criteria not met
+                    if r < alpha:
+                        accepted[p] += 1
+                        accepted_per_100[p] += 1
+                        params_all[p, i] = copy.copy(params_all_new[p, i])
+                        E_fit[i, ] = copy.copy(g_i_new)
+                    #            else:
+                    #                if Accepted / (it * nvox) < 0.23:
+                    #                    continue
+                    #                    # print("Stopping criterion met {}".format(Accepted/(it*nvox)))
+                    #                    # return Acceptance_rate
 
-                # TO DO: update weights every 100 steps
-        if np.remainder(j, 100) == 0 and j < burn_in/2:
-            # w = [v * ( 51/(2*(51 - w_acc/(it*nvox*5))) ) for v in w]
-            w = w * (101 / (2 * (101-(accepted_per_100/nvox))))
-            accepted_per_100 = np.zeros((w.__len__()))
-            #print(w)
+                    # for plotting
+                    if i == 0:
+                        param_conv[p, j] = copy.copy(params_all[p, i])
+                        tmpgibbs[:, j] = copy.copy(mu)
+
+                    # acceptance_rate.append(accepted / (it * nvox))
+                    acceptance_rate[p, j] = accepted[p] / (it * roi_nvox)
+
+                    # TO DO: update weights every 100 steps
+            if np.remainder(j, 100) == 0 and j < burn_in/2:
+                # w = [v * ( 51/(2*(51 - w_acc/(it*nvox*5))) ) for v in w]
+                w = w * (101 / (2 * (101-(accepted_per_100/roi_nvox))))
+                accepted_per_100 = np.zeros((w.__len__()))
+                #print(w)
 
     params_all = tform_params(params_all, 'r')
     param_conv = tform_params(param_conv, 'r')
@@ -287,6 +300,8 @@ def main():
     params_all = copy.copy(params_all_init)
     E_sim = copy.copy(E_sim_init)
     E_fit = copy.copy(E_fit_init)
+
+    #mask[mask==2] = 1
 
     nMCMCsteps = 1000
     burn_in = 600
