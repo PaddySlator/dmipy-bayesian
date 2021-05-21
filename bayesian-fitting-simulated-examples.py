@@ -8,6 +8,7 @@
 from dmipy.core import modeling_framework
 from os.path import join
 import numpy as np
+from itertools import product
 
 
 # In[2]:
@@ -57,6 +58,7 @@ NODDI = MultiCompartmentModel(models=[ball, watson_dispersed_bundle])
 print(NODDI.parameter_names)
 print(NODDI.parameter_ranges)
 
+pathOut = "/media/full/DATA/Software/Bayes_compartment_inference/Output_bayes_fit"
 
     
 
@@ -210,7 +212,6 @@ for param in model.parameter_names:
         params_all[l,:] = np.transpose(init_param[param])
         l=l+1
 
-         
 
 #get the initial E_sim, E_fit
 
@@ -234,7 +235,7 @@ for param in model.parameter_names:
 #         #    partial_volume_1=1 - f0_init[x])
         
 #         E_fit[x, y, :] = model.simulate_signal(acq_scheme, parameter_vector)
-  
+
     
 #for general model - change so that E_sim, E_fit are 2D instead of 3D
 
@@ -265,7 +266,7 @@ sigma = np.cov(params_all)
 w = 0.01 * np.mean(abs(params_all),axis=1)
 
 
-nMCMCsteps = 100
+nMCMCsteps =100
 #T = compute_temp_schedule(2000, 10**-3, nMCMCsteps)
 
 #Accepted = 1
@@ -275,38 +276,80 @@ nMCMCsteps = 100
 tmppar = np.zeros((nvox, nMCMCsteps, nparam))
 tmpgibbs = np.zeros((nparam, nMCMCsteps))
 
+def radial_patch(voxel, radius):
+    N = len(voxel)
+    rad_check = np.arange(-radius, radius+1)
+    for relative_index in product(rad_check, repeat=N):
+        if not all(i == 0 for i in relative_index):
+            yield tuple(i + i_rel for i, i_rel in zip(voxel, relative_index))
+
+def ravel_index(x, dims):
+    c = np.cumprod([1] + dims[::-1])[:-1][::-1]
+    return np.dot(c,x)
+
 # NB i (voxel loop) and j (MC loop) in keeping with Orton paper
 for j in range(0, nMCMCsteps):
     print(j)
     it = j+1
     # Gibbs moves to update priors
     # sample mu from multivariate normal distribution defined by current parameter estimates
-    m = np.mean(params_all, axis=1)
-    V = sigma / nvox
-    mu = np.random.multivariate_normal(m, V)
+    # patch = radial_patch(i, 1)
+    # m = np.mean(params_all, axis=1)
+    # V = sigma / nvox
+    # mu = np.random.multivariate_normal(m, V)
     
-    #original
-    #mu_scaled = mu * [1e9, 1e9, 1, 1, 1]
-    #use inbuilt dmipy scalings
-    mu_scaled= mu * model.scales_for_optimization
+    # #original
+    # #mu_scaled = mu * [1e9, 1e9, 1, 1, 1]
+    # #use inbuilt dmipy scalings
+    # mu_scaled= mu * model.scales_for_optimization
     
-    # sample sigma from inverse Wishart distribution (using newly updated mu)
-    # NB scaled parameters used in calculation of priors in Metropolis-Hastings updates
-    phi = np.sum([np.outer(params_all[:, i]-mu,
-                    params_all[:, i]-mu)
-                for i in range(0, nvox)], axis=0)
+    # # sample sigma from inverse Wishart distribution (using newly updated mu)
+    # # NB scaled parameters used in calculation of priors in Metropolis-Hastings updates
+    # phi = np.sum([np.outer(params_all[:, i]-mu,
+    #                 params_all[:, i]-mu)
+    #             for i in range(0, nvox)], axis=0)
     
-    phi_scaled = np.sum([np.outer((params_all[:, i] - mu)/model.scales_for_optimization,
-                                (params_all[:, i] - mu)/model.scales_for_optimization)
-                        for i in range(0, nvox)], axis=0)
+    # phi_scaled = np.sum([np.outer((params_all[:, i] - mu)/model.scales_for_optimization,
+    #                             (params_all[:, i] - mu)/model.scales_for_optimization)
+    #                     for i in range(0, nvox)], axis=0)
     
     #sigma = scipy.stats.invwishart(scale=phi, df=nvox-nparam).rvs()
     
-    sigma_scaled = scipy.stats.invwishart(scale=phi_scaled, df=nvox-nparam).rvs()
+    # sigma_scaled = scipy.stats.invwishart(scale=phi_scaled, df=nvox-nparam).rvs()
 
     # Metropolis-Hastings parameter updates
     params_all_new = copy.copy(params_all)
-    for i in range(0, nvox):       
+
+    for i in range(0, nvox):
+        patch = radial_patch(np.unravel_index(i, (10,10)), 2)
+        patch = [ravel_index(p, [10,10]) for p in list(patch)]
+        patch = [p for p in patch if p>=0 and p <100]
+        patch_vox_params = params_all[:,patch]
+        m = np.mean(patch_vox_params, axis=1)
+        # print((patch_vox_params))
+        sigma = np.cov(patch_vox_params)
+        V = sigma / len(patch_vox_params)
+        mu = np.random.multivariate_normal(m, V)
+
+        #original
+        #mu_scaled = mu * [1e9, 1e9, 1, 1, 1]
+        #use inbuilt dmipy scalings
+        mu_scaled= mu * model.scales_for_optimization
+        
+        # sample sigma from inverse Wishart distribution (using newly updated mu)
+        # NB scaled parameters used in calculation of priors in Metropolis-Hastings updates
+        phi = np.sum([np.outer(params_all[:, i]-mu,
+                        params_all[:, i]-mu)
+                    for i in range(0, nvox)], axis=0)
+        
+        phi_scaled = np.sum([np.outer((params_all[:, i] - mu)/model.scales_for_optimization,
+                                    (params_all[:, i] - mu)/model.scales_for_optimization)
+                            for i in range(0, nvox)], axis=0)
+        
+        #sigma = scipy.stats.invwishart(scale=phi, df=nvox-nparam).rvs()
+        
+        sigma_scaled = scipy.stats.invwishart(scale=phi_scaled, df=nvox-nparam).rvs()
+
         for p in range(nparam):  # loop over parameters
             #p = 0  # for now just look at
             # sample parameter
@@ -326,7 +369,7 @@ for j in range(0, nMCMCsteps):
             #    partial_volume_1=1-params_all_new[2, i])
 
             #general model
-            parameter_vector = params_all[:,i]                
+            parameter_vector = params_all_new[:,i]                
             g_i_new = model.simulate_signal(acq_scheme, parameter_vector)   # model-predicted signal (new params)
             
             # calculate posteriors and PDFs (log scale)
@@ -349,12 +392,13 @@ for j in range(0, nMCMCsteps):
             alpha = np.min([0, (likelihood_new + prior_new) - (likelihood + prior)])
             alpha_scaled = np.min([0, (likelihood_new + prior_new_scaled) - (likelihood + prior_scaled)] )
             r = np.log(np.random.uniform(0, 1))
-
+            if alpha_scaled < 0:
+                params_all[p, i] = params_all_new[p, i]
             # reject new parameter value if criteria not met
-            if r < alpha_scaled:
+            elif r < alpha_scaled:
                 #Accepted +=1
-                params_all[p, i] = copy.copy(params_all_new[p, i])
-                E_fit[i, ] = copy.copy(g_i_new)
+                params_all[p, i] = params_all_new[p, i]
+                E_fit[i, ] = g_i_new
             # else:
             #     if Accepted/(it*nvox) < 0.23:
             #         continue
@@ -362,7 +406,7 @@ for j in range(0, nMCMCsteps):
                     # return Acceptance_rate
 
             # for plotting
-            tmppar[i, j, p] = copy.copy(params_all[p, i])
+            tmppar[i, j, p] = params_all[p, i]
             tmpgibbs[:, j] = mu
 
             #Acceptance_rate.append(Accepted/(it*nvox) )
@@ -450,8 +494,8 @@ for param in model.parameter_names:
             
         l=l+1
 
-    
-
+snap_plot = "Bayesian_fit.png"
+fig.savefig(join(pathOut, snap_plot))
 
 # In[8]:
 
@@ -485,8 +529,8 @@ for param in model.parameter_names:
         axs[l].set_title('Ground truth:\n' + param)
         l=l+1
 
-    
-    
+snap_plot = "Ground_truth.png"
+fig.savefig(join(pathOut, snap_plot))
 
 
 # In[10]:
@@ -516,10 +560,9 @@ for param in model.parameter_names:
             
         l=l+1
         
-        
-        
+snap_plot = "Bayesian_lsq_fit.png"
+fig.savefig(join(pathOut, snap_plot))
 
-    
 
 
 # In[11]:
@@ -544,7 +587,8 @@ for param in model.parameter_names:
         axs[l].set_title('Bayesian prior trace:\n ' + param)
         l=l+1
 
-
+snap_plot = "Bayesian_prior_trace.png"
+fig.savefig(join(pathOut, snap_plot))
 
 # In[12]:
 
@@ -569,6 +613,8 @@ for param in model.parameter_names:
     else: 
         axs[l].set_title('Bayesian fit single voxel trace:\n ' + param)
         l=l+1
+snap_plot = "Bayesian_fit_voxel_trace.png"
+fig.savefig(join(pathOut, snap_plot))
 
 
 # In[13]:
@@ -600,4 +646,5 @@ for param in model.parameter_names:
     else: 
         axs[l].set_title('Bayesian fit prior:\n' + param)
         l=l+1
-
+snap_plot = "Bayesian_fit_prior.png"
+fig.savefig(join(pathOut, snap_plot))

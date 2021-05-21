@@ -162,8 +162,8 @@ def main():
     data = E_sim
     mask = data[..., 0] > 0
 
-    nsteps = 1000
-    burn_in = 600
+    nsteps = 100
+    burn_in = 20
 
     Proc_start = time.time()
     Acceptance_rate, param_conv, params_all_new = fit_bayes(model, acq_scheme, data, nsteps, burn_in, mask)
