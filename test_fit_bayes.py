@@ -138,6 +138,7 @@ def load_data():
     nx = int(np.round(dimx/4))
     ny = int(np.round(dimy/4))
     mask[nx:dimx-nx, ny:dimy-ny] = 2
+    mask = np.ndarray.flatten(mask)  # flatten signal to get [nvox x nmeas] array
 
     return params_all, E_sim, E_fit, nvox, params_all_correct, mask
 
@@ -160,7 +161,7 @@ def main():
     model = deepcopy(ballstick)
     acq_scheme = acq_scheme
     data = E_sim
-    mask = data[..., 0] > 0
+    #mask = data[..., 0] > 0
 
     nsteps = 1000
     burn_in = 500
@@ -184,7 +185,7 @@ def main():
                                 param_conv['G1Ball_1_lambda_iso'][0, :],
                                 param_conv['partial_volume_0'][0, :],
                                 param_conv['C1Stick_1_mu'][0, 0, :],
-                                param_conv['C1Stick_1_mu'][0, 0, :]])
+                                param_conv['C1Stick_1_mu'][1, 0, :]])
 
     # print: initialisation, correct value, mean (after burn-in) Bayes-fitted value
     print((params_all_init[0, 0], params_all_correct[0, 0], np.mean(param_conv_vec[0, burn_in:-1])))  # , params_all_new[2, 0]))
