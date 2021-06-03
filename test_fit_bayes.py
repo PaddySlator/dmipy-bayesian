@@ -3,11 +3,11 @@ from dmipy.core import modeling_framework
 from os.path import join
 import numpy as np
 import scipy.stats
-import copy
+from copy import copy, deepcopy
 import matplotlib.pyplot as plt
 import time
 import math
-from fit_bayes import fit_bayes, tform_params, dict_to_array, array_to_dict
+from fit_bayes import fit_bayes, tform_params  # , dict_to_array, array_to_dict
 
 # load HCP acqusition scheme
 from dmipy.data import saved_acquisition_schemes
@@ -69,8 +69,8 @@ def load_data():
     stick_ori = (np.pi, 0)
 
     # simulate a simple 10x10 image
-    dimx = 11
-    dimy = 11
+    dimx = 5
+    dimy = 5
     nvox = dimx * dimy
 
     Dpar_sim = np.zeros((dimx, dimy))
@@ -117,7 +117,7 @@ def load_data():
                                    np.ndarray.flatten(fpar_init),
                                    np.ndarray.flatten(stick_ori_init[:, :, 0]),
                                    np.ndarray.flatten(stick_ori_init[:, :, 1])])
-    params_all = copy.copy(params_all_correct)
+    params_all = copy(params_all_correct)
 
     # TEST: perturb non-orientation variables
     x = 0
@@ -148,70 +148,71 @@ def main():
     mask = np.ones(E_sim.shape[0])
     acq_scheme, nmeas, stick, ball, ballstick = sign_par()
 
-    params_all_init = copy.copy(params_all)
-    E_sim_init = copy.copy(E_sim)
-    E_fit_init = copy.copy(E_fit)
+    params_all_init = copy(params_all)
+    E_sim_init = copy(E_sim)
+    E_fit_init = copy(E_fit)
 
-    # params_all = copy.copy(params_all_init)
-    E_sim = copy.copy(E_sim_init)
-    E_fit = copy.copy(E_fit_init)
+    # params_all = copy(params_all_init)
+    E_sim = copy(E_sim_init)
+    E_fit = copy(E_fit_init)
 
     # generalise
-    model = ballstick
+    model = deepcopy(ballstick)
     acq_scheme = acq_scheme
     data = E_sim
     mask = data[..., 0] > 0
 
-    nsteps = 100
-    burn_in = 20
+    nsteps = 1000
+    burn_in = 500
 
     Proc_start = time.time()
-    Acceptance_rate, param_conv, params_all_new = fit_bayes(model, acq_scheme, data, nsteps, burn_in, mask)
+    Acceptance_rate, param_conv, params_all_new, params_all_orig = fit_bayes(model, acq_scheme, data, mask, nsteps, burn_in)
     Compute_time(Proc_start, time.time())
 
-    # sorry
-    param_conv1 = copy.copy(param_conv)
-    tmp = np.exp(param_conv[-1, :]) / (1 + np.exp(param_conv[-1, :]))
-    tmp = np.array([1 if np.isnan(x) else x for x in tmp])
-    tmp = 1 - tmp
-    tmp = np.log(tmp) - np.log(1 - tmp)
-    param_conv = np.vstack([param_conv, tmp])
-    param_conv = dict_to_array(model, tform_params(array_to_dict(model, param_conv), model, 'r'))
-    tmp = param_conv
-    param_conv[0, :] = tmp[2, :]  # lambda par
-    param_conv[1, :] = tmp[3, :]  # lambda iso
-    param_conv[2, :] = tmp[4, :]  # partial vol 0
-    param_conv[3, :] = tmp[0, :]  # C1 stick mu 0
-    param_conv[4, :] = tmp[1, :]  # C1 stick mu 1
-    param_conv[5, :] = tmp[5, :]  # partial vol 1
+    # remove dependent volume fraction from model
+    dependent_fraction = model.partial_volume_names[-1]
+    model_reduced = deepcopy(model)
+    del model_reduced.parameter_ranges[dependent_fraction]
+    del model_reduced.parameter_cardinality[dependent_fraction]
+    del model_reduced.parameter_scales[dependent_fraction]
+    del model_reduced.parameter_types[dependent_fraction]
+    del model_reduced.parameter_optimization_flags[dependent_fraction]
+
+    params_all_orig_vec = np.transpose(model.parameters_to_parameter_vector(**params_all_orig))
+    params_all_new_vec = np.transpose(model.parameters_to_parameter_vector(**params_all_new))
+    param_conv_vec = np.vstack([param_conv['C1Stick_1_lambda_par'][0, :],
+                                param_conv['G1Ball_1_lambda_iso'][0, :],
+                                param_conv['partial_volume_0'][0, :],
+                                param_conv['C1Stick_1_mu'][0, 0, :],
+                                param_conv['C1Stick_1_mu'][0, 0, :]])
 
     # print: initialisation, correct value, mean (after burn-in) Bayes-fitted value
-    print((params_all_init[0, 0], params_all_correct[0, 0], np.mean(param_conv[0, burn_in:-1]) , params_all_new[2, 0]))
-    print((params_all_init[1, 0], params_all_correct[1, 0], np.mean(param_conv[1, burn_in:-1]) , params_all_new[3, 0]))
-    print((params_all_init[2, 0], params_all_correct[2, 0], np.mean(param_conv[2, burn_in:-1]) , params_all_new[4, 0]))
-    print((params_all_init[3, 0], params_all_correct[3, 0], np.mean(param_conv[3, burn_in:-1]) , params_all_new[0, 0]))
-    print((params_all_init[4, 0], params_all_correct[4, 0], np.mean(param_conv[4, burn_in:-1]) , params_all_new[1, 0]))
+    print((params_all_init[0, 0], params_all_correct[0, 0], np.mean(param_conv_vec[0, burn_in:-1])))  # , params_all_new[2, 0]))
+    print((params_all_init[1, 0], params_all_correct[1, 0], np.mean(param_conv_vec[1, burn_in:-1])))  # , params_all_new[3, 0]))
+    print((params_all_init[2, 0], params_all_correct[2, 0], np.mean(param_conv_vec[2, burn_in:-1])))  # , params_all_new[4, 0]))
+    print((params_all_init[3, 0], params_all_correct[3, 0], np.mean(param_conv_vec[3, burn_in:-1])))  # , params_all_new[0, 0]))
+    print((params_all_init[4, 0], params_all_correct[4, 0], np.mean(param_conv_vec[4, burn_in:-1])))  # , params_all_new[1, 0]))
 
     # plot parameter convergence
     color = 'tab:blue'
     fig, ax = plt.subplots()
     ax.set_ylabel("Dpar", color=color)
     ax.set_xlabel("MCMC iteration", color=color)
-    ax.scatter(range(nsteps), param_conv[0, :])
+    ax.scatter(range(nsteps), param_conv_vec[0, :])
     update_font_size_all(plt, ax, 20, legend=0, cbar=0)
     make_square_axes(ax)
 
     fig, ax = plt.subplots()
     ax.set_ylabel("Diso", color=color)
     ax.set_xlabel("MCMC iteration", color=color)
-    ax.scatter(range(nsteps), param_conv[1, :])
+    ax.scatter(range(nsteps), param_conv_vec[1, :])
     update_font_size_all(plt, ax, 20, legend=0, cbar=0)
     make_square_axes(ax)
 
     fig, ax = plt.subplots()
     ax.set_ylabel("fpar", color=color)
     ax.set_xlabel("MCMC iteration", color=color)
-    ax.scatter(range(nsteps), param_conv[2, :])
+    ax.scatter(range(nsteps), param_conv_vec[2, :])
     update_font_size_all(plt, ax, 20, legend=0, cbar=0)
     make_square_axes(ax)
 
@@ -219,25 +220,25 @@ def main():
     fig, ax = plt.subplots()
     ax.set_ylabel("freq", color=color)
     ax.set_xlabel("Dpar", color=color)
-    ax.hist(param_conv[0, burn_in:-1], bins=50)
+    ax.hist(param_conv_vec[0, burn_in:-1], bins=50)
     update_font_size_all(plt, ax, 20, legend=0, cbar=0)
     make_square_axes(ax)
 
     fig, ax = plt.subplots()
     ax.set_ylabel("freq", color=color)
     ax.set_xlabel("Diso", color=color)
-    ax.hist(param_conv[1, burn_in:-1], bins=50)
+    ax.hist(param_conv_vec[1, burn_in:-1], bins=50)
     update_font_size_all(plt, ax, 20, legend=0, cbar=0)
     make_square_axes(ax)
 
     fig, ax = plt.subplots()
     ax.set_ylabel("freq", color=color)
     ax.set_xlabel("fpar", color=color)
-    ax.hist(param_conv[2, burn_in:-1], bins=50)
+    ax.hist(param_conv_vec[2, burn_in:-1], bins=50)
     update_font_size_all(plt, ax, 20, legend=0, cbar=0)
     make_square_axes(ax)
 
-    tmpim = np.reshape(params_all_correct, (5, 10, 10))
+    tmpim = np.reshape(params_all_correct, (5, int(np.sqrt(nvox)), int(np.sqrt(nvox))))
     fig, ax = plt.subplots()
     plt.title('D stick')
     plt.imshow(tmpim[0, :, :])
