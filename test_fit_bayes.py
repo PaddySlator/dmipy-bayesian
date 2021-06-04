@@ -69,8 +69,8 @@ def load_data():
     stick_ori = (np.pi, 0)
 
     # simulate a simple 10x10 image
-    dimx = 5
-    dimy = 5
+    dimx = 9
+    dimy = 9
     nvox = dimx * dimy
 
     Dpar_sim = np.zeros((dimx, dimy))
@@ -146,7 +146,7 @@ def load_data():
 def main():
     # FIXME: E_sim and mask need to have dim = [x, y, z, ndw]
     params_all, E_sim, E_fit, nvox, params_all_correct, mask = load_data()
-    mask = np.ones(E_sim.shape[0])
+    # mask = np.ones(E_sim.shape[0])
     acq_scheme, nmeas, stick, ball, ballstick = sign_par()
 
     params_all_init = copy(params_all)
