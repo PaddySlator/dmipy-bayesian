@@ -69,8 +69,8 @@ def load_data():
     stick_ori = (np.pi, 0)
 
     # simulate a simple 10x10 image
-    dimx = 9
-    dimy = 9
+    dimx = 5
+    dimy = 5
     nvox = dimx * dimy
 
     Dpar_sim = np.zeros((dimx, dimy))
@@ -120,6 +120,7 @@ def load_data():
     params_all = copy(params_all_correct)
 
     # TEST: perturb non-orientation variables
+    '''
     x = 0
     y = 0
     parameter_vector = ballstick.parameters_to_parameter_vector(
@@ -132,12 +133,13 @@ def load_data():
     params_all[0, 0] = 10e-9  # Dpar
     params_all[1, 0] = 10e-9  # Diso_sim[x, y]
     params_all[2, 0] = .5     # fpar_sim[x, y]
+    '''
 
     # create mask with regional ROIs
     mask = np.ones([dimx, dimy])
-    nx = int(np.round(dimx/4))
-    ny = int(np.round(dimy/4))
-    mask[nx:dimx-nx, ny:dimy-ny] = 2
+    #nx = int(np.round(dimx/4))
+    #ny = int(np.round(dimy/4))
+    #mask[nx:dimx-nx, ny:dimy-ny] = 2
     mask = np.ndarray.flatten(mask)  # flatten signal to get [nvox x nmeas] array
 
     return params_all, E_sim, E_fit, nvox, params_all_correct, mask
