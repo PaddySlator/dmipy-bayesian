@@ -85,9 +85,9 @@ def load_data():
             Dpar_sim[x, y] = Dpar + np.random.normal(0, 0.1e-9)
             Diso_sim[x, y] = Diso + np.random.normal(0, 0.1e-9)
             fpar_sim[x, y] = fpar + np.random.normal(0, 0.1)
-            if fpar_sim[x, y] < 0:  # make sure 0 < f < 1
+            if fpar_sim[x, y] < .01:  # make sure 0 < f < 1
                 fpar_sim[x, y] = 0.01
-            elif fpar_sim[x, y] > 0:  # make sure 0 < f < 1
+            elif fpar_sim[x, y] > .99:  # make sure 0 < f < 1
                 fpar_sim[x, y] = 0.99
             stick_ori_sim[x, y, :] = stick_ori + np.random.normal(0, 0.1, (1, 2))
             # generate signal
@@ -165,11 +165,11 @@ def main():
     data = E_sim
     #mask = data[..., 0] > 0
 
-    nsteps = 1000
-    burn_in = 500
+    nsteps = 5000
+    burn_in = 1200
 
     Proc_start = time.time()
-    Acceptance_rate, param_conv, params_all_new, params_all_orig = fit_bayes(model, acq_scheme, data, mask, nsteps, burn_in)
+    acceptance_rate, param_conv, params_all_new, params_all_orig, likelihood_stored = fit_bayes(model, acq_scheme, data, mask, nsteps, burn_in)
     Compute_time(Proc_start, time.time())
 
     # remove dependent volume fraction from model
@@ -190,75 +190,71 @@ def main():
                                 param_conv['C1Stick_1_mu'][1, 0, :]])
 
     # print: initialisation, correct value, mean (after burn-in) Bayes-fitted value
-    print((params_all_init[0, 0], params_all_correct[0, 0], np.mean(param_conv_vec[0, burn_in:-1])))  # , params_all_new[2, 0]))
-    print((params_all_init[1, 0], params_all_correct[1, 0], np.mean(param_conv_vec[1, burn_in:-1])))  # , params_all_new[3, 0]))
-    print((params_all_init[2, 0], params_all_correct[2, 0], np.mean(param_conv_vec[2, burn_in:-1])))  # , params_all_new[4, 0]))
-    print((params_all_init[3, 0], params_all_correct[3, 0], np.mean(param_conv_vec[3, burn_in:-1])))  # , params_all_new[0, 0]))
-    print((params_all_init[4, 0], params_all_correct[4, 0], np.mean(param_conv_vec[4, burn_in:-1])))  # , params_all_new[1, 0]))
+    print((params_all_orig['C1Stick_1_lambda_par'][0], params_all_correct[0, 0], np.mean(param_conv_vec[0, burn_in:-1])))  # , params_all_new[2, 0]))
+    print((params_all_orig['G1Ball_1_lambda_iso'][0], params_all_correct[1, 0], np.mean(param_conv_vec[1, burn_in:-1])))  # , params_all_new[3, 0]))
+    print((params_all_orig['partial_volume_0'][0], params_all_correct[2, 0], np.mean(param_conv_vec[2, burn_in:-1])))  # , params_all_new[4, 0]))
+    print((params_all_orig['C1Stick_1_mu'][0, 0], params_all_correct[3, 0], np.mean(param_conv_vec[3, burn_in:-1])))  # , params_all_new[0, 0]))
+    print((params_all_orig['C1Stick_1_mu'][0, 1], params_all_correct[4, 0], np.mean(param_conv_vec[4, burn_in:-1])))  # , params_all_new[1, 0]))
 
     # plot parameter convergence
-    color = 'tab:blue'
     fig, ax = plt.subplots()
-    ax.set_ylabel("Dpar", color=color)
-    ax.set_xlabel("MCMC iteration", color=color)
-    ax.scatter(range(nsteps), param_conv_vec[0, :])
+    ax.set_ylabel("Dpar")
+    ax.set_xlabel("MCMC iteration")
+    ax.scatter(range(nsteps), param_conv_vec[0, :], color='tab:red')
     update_font_size_all(plt, ax, 20, legend=0, cbar=0)
     make_square_axes(ax)
 
     fig, ax = plt.subplots()
-    ax.set_ylabel("Diso", color=color)
-    ax.set_xlabel("MCMC iteration", color=color)
-    ax.scatter(range(nsteps), param_conv_vec[1, :])
+    ax.set_ylabel("Diso")
+    ax.set_xlabel("MCMC iteration")
+    ax.scatter(range(nsteps), param_conv_vec[1, :], color='tab:green')
     update_font_size_all(plt, ax, 20, legend=0, cbar=0)
     make_square_axes(ax)
 
     fig, ax = plt.subplots()
-    ax.set_ylabel("fpar", color=color)
-    ax.set_xlabel("MCMC iteration", color=color)
-    ax.scatter(range(nsteps), param_conv_vec[2, :])
+    ax.set_ylabel("fpar")
+    ax.set_xlabel("MCMC iteration")
+    ax.scatter(range(nsteps), param_conv_vec[2, :], color='tab:blue')
     update_font_size_all(plt, ax, 20, legend=0, cbar=0)
     make_square_axes(ax)
 
     # plot parameter distributions after burn-in period
     fig, ax = plt.subplots()
-    ax.set_ylabel("freq", color=color)
-    ax.set_xlabel("Dpar", color=color)
-    ax.hist(param_conv_vec[0, burn_in:-1], bins=50)
+    ax.set_ylabel("freq")
+    ax.set_xlabel("Dpar")
+    ax.hist(param_conv_vec[0, burn_in:-1], color='tab:red')
     update_font_size_all(plt, ax, 20, legend=0, cbar=0)
     make_square_axes(ax)
 
     fig, ax = plt.subplots()
-    ax.set_ylabel("freq", color=color)
-    ax.set_xlabel("Diso", color=color)
-    ax.hist(param_conv_vec[1, burn_in:-1], bins=50)
+    ax.set_ylabel("freq")
+    ax.set_xlabel("Diso")
+    ax.hist(param_conv_vec[1, burn_in:-1], color='tab:green')
     update_font_size_all(plt, ax, 20, legend=0, cbar=0)
     make_square_axes(ax)
 
     fig, ax = plt.subplots()
-    ax.set_ylabel("freq", color=color)
-    ax.set_xlabel("fpar", color=color)
-    ax.hist(param_conv_vec[2, burn_in:-1], bins=50)
+    ax.set_ylabel("freq")
+    ax.set_xlabel("fpar")
+    ax.hist(param_conv_vec[2, burn_in:-1], color='tab:blue')
     update_font_size_all(plt, ax, 20, legend=0, cbar=0)
     make_square_axes(ax)
-
-    tmpim = np.reshape(params_all_correct, (5, int(np.sqrt(nvox)), int(np.sqrt(nvox))))
-    fig, ax = plt.subplots()
-    plt.title('D stick')
-    plt.imshow(tmpim[0, :, :])
-    update_font_size_all(plt, ax, 20, legend=0, cbar=1)
-    ax.set_xticklabels([])
-    ax.set_yticklabels([])
 
     # plot acceptance rate
     fig, ax = plt.subplots()
-    color = 'tab:blue'
-    ax.set_ylabel("Acceptance Rate", color=color)
-    ax.plot(np.arange(len(Acceptance_rate)), Acceptance_rate, marker=",", color=color)
-    ax.tick_params(axis='y', labelcolor=color)
-    plt.tight_layout()
-    plt.show()
+    ax.set_ylabel("Acceptance Rate")
+    ax.scatter(range(nsteps), acceptance_rate['C1Stick_1_lambda_par'][0], color='tab:red')
+    ax.scatter(range(nsteps), acceptance_rate['G1Ball_1_lambda_iso'][0], color='tab:green')
+    ax.scatter(range(nsteps), acceptance_rate['partial_volume_0'][0], color='tab:blue')
+    ax.legend(['Dpar', 'Diso', 'fpar'])
 
-
+    # plot likelihood
+    fig, ax = plt.subplots()
+    ax.set_ylabel("Likelihood")
+    ax.scatter(range(nsteps), likelihood_stored['C1Stick_1_lambda_par'][0], color='tab:red')
+    ax.scatter(range(nsteps), likelihood_stored['G1Ball_1_lambda_iso'][0], color='tab:green')
+    ax.scatter(range(nsteps), likelihood_stored['partial_volume_0'][0], color='tab:blue')
+    ax.legend(['Dpar', 'Diso', 'fpar'])
 
 if __name__ == '__main__':
     main()

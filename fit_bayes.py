@@ -1,6 +1,7 @@
 import numpy as np
 from copy import copy, deepcopy
 import scipy
+import matplotlib.pyplot as plt
 
 
 # NOTE: will need fix if other models have parameters with cardinality > 1 (other than orientation)
@@ -75,11 +76,13 @@ def fit_bayes(model, acq_scheme, data, mask=None, nsteps=1000, burn_in=500):
 
     # TODO: remove perturbations from final version
     # perturb params for testing
-    init_param['C1Stick_1_lambda_par'][0] = model.parameter_ranges['C1Stick_1_lambda_par'][1] \
+    init_param['C1Stick_1_lambda_par'][0] = (model.parameter_ranges['C1Stick_1_lambda_par'][1]
+                                             -model.parameter_ranges['C1Stick_1_lambda_par'][1]/50) \
                                             * model.parameter_scales['C1Stick_1_lambda_par']  # 10e-9  # Dpar
-    init_param['G1Ball_1_lambda_iso'][0] = model.parameter_ranges['G1Ball_1_lambda_iso'][1] \
+    init_param['G1Ball_1_lambda_iso'][0] = (model.parameter_ranges['G1Ball_1_lambda_iso'][1]
+                                            -model.parameter_ranges['G1Ball_1_lambda_iso'][1]/50) \
                                            * model.parameter_scales['G1Ball_1_lambda_iso']  # 10e-9  # Diso
-    #init_param[model.parameter_names[3]][0] = .5     # fpar
+    init_param[model.parameter_names[3]][0] = .5     # fpar
 
     # create dict of LSQ fit values, original values
     params_all_orig = deepcopy(init_param)
@@ -98,12 +101,21 @@ def fit_bayes(model, acq_scheme, data, mask=None, nsteps=1000, burn_in=500):
     for param in parameters_to_fit:                                     # set weight as x * range
         if model.parameter_cardinality[param] > 1:
             for card in range(model.parameter_cardinality[param]):
-                w[param][card] = 0.1 * np.abs(np.subtract(w[param][card, 1], w[param][card, 0]))
+                w[param][card] = 0.01 * np.abs(np.subtract(w[param][card, 1], w[param][card, 0]))
             w[param] = w[param][range(model.parameter_cardinality[param]), 0]
             w[param] = np.tile(w[param], (nvox, 1))                     # tile to create weight for each voxel
         elif model.parameter_cardinality[param] == 1:
-            w[param] = 0.1 * np.abs(np.subtract(w[param][1], w[param][0]))
+            w[param] = 0.01 * np.abs(np.subtract(w[param][1], w[param][0]))
             w[param] = np.tile(w[param], nvox)                          # tile to create weight for each voxel
+
+    '''
+    w2 = deepcopy(init_param)
+    for param in parameters_to_fit:
+        w2[param] = w2[param] / 10                    # initial w = starting value / 10 (Gustafsson et al., 2018)
+    w2 = tform_params(w2, model.parameter_names, model, 'f')  # transform
+    for param in parameters_to_fit:
+        w2[param] = np.abs(w2[param])
+    '''
 
     # measured signals
     E_dat = data[mask>0]
@@ -119,6 +131,7 @@ def fit_bayes(model, acq_scheme, data, mask=None, nsteps=1000, burn_in=500):
     param_conv = dict.fromkeys(parameters_to_fit)           # track parameter convergence
     gibbs_mu = np.zeros((nroi, nparams-1, nsteps))                # track mu at each step
     gibbs_sigma = np.zeros((nroi, nparams-1, nparams-1, nsteps))  # track sigma at each step
+    likelihood_stored = dict.fromkeys(parameters_to_fit)    # track likelihood at each step
 
     # initialise dictionaries (param_conv, accepted, accepted_per_100, acceptance_rate)
     for param in parameters_to_fit:
@@ -128,11 +141,13 @@ def fit_bayes(model, acq_scheme, data, mask=None, nsteps=1000, burn_in=500):
                 accepted_per_100[param] = np.zeros((nvox, model.parameter_cardinality[param]))
                 acceptance_rate[param] = np.zeros((nvox, model.parameter_cardinality[param], nsteps))
                 param_conv[param] = np.zeros((nvox, model.parameter_cardinality[param], nsteps))
+                likelihood_stored[param] = np.zeros((nvox, model.parameter_cardinality[param], nsteps))
         elif model.parameter_cardinality[param] == 1:
             accepted[param] = np.zeros(nvox)
             accepted_per_100[param] = np.zeros(nvox)
             acceptance_rate[param] = np.zeros((nvox, nsteps))
             param_conv[param] = np.zeros((nvox, nsteps))
+            likelihood_stored[param] = np.zeros((nvox, nsteps))
 
     # loop over ROIs
     for roi in range(nroi):
@@ -195,8 +210,8 @@ def fit_bayes(model, acq_scheme, data, mask=None, nsteps=1000, burn_in=500):
                 inner_y_g = np.sum(np.multiply(np.squeeze(y), np.squeeze(g)), 1)
                 inner_g_g = np.sum(np.multiply(np.squeeze(g), np.squeeze(g)), 1)
                 inner_y_gnew = np.sum(np.multiply(np.squeeze(y), np.squeeze(g_new)), 1)
-                inner_gnew_gnew = np.sum(np.multiply(np.squeeze(g), np.squeeze(g_new)), 1)
-                likelihood = (-ndw / 2) * np.log(inner_y_y - (inner_y_g ** 2 / inner_g_g))
+                inner_gnew_gnew = np.sum(np.multiply(np.squeeze(g_new), np.squeeze(g_new)), 1)
+                likelihood = (-ndw / 2) * np.log(inner_y_y - (inner_y_g ** 2 / inner_g_g))  # FIXME store this
                 likelihood_new = (-ndw / 2) * np.log(inner_y_y - (inner_y_gnew ** 2 / inner_gnew_gnew))
 
                 parameter_vector = model_reduced.parameters_to_parameter_vector(**params_all_tform)[idx_roi, :] # [i, :]
@@ -210,15 +225,20 @@ def fit_bayes(model, acq_scheme, data, mask=None, nsteps=1000, burn_in=500):
 
                 # accept new parameter value if criteria met
                 to_accept = [idx_roi[i] for i in range(nvox_roi) if r[i] < alpha[i]]
+                to_reject = [idx_roi[i] for i in range(nvox_roi) if r[i] > alpha[i]]
                 if model.parameter_cardinality[p] > 1:
                     for card in range(model.parameter_cardinality[p]):
                         accepted[p][to_accept, card] += 1
                         accepted_per_100[p][to_accept, card] += 1
                         params_all_tform[p][to_accept, card] = copy(params_all_new[p][to_accept, card])
+                        likelihood_stored[p][to_accept, card, j] = likelihood_new[to_accept] + prior_new[to_accept]
+                        likelihood_stored[p][to_reject, card, j] = likelihood[to_reject] + prior[to_reject]
                 elif model.parameter_cardinality[p] == 1:
                     accepted[p][to_accept] += 1
                     accepted_per_100[p][to_accept] += 1
                     params_all_tform[p][to_accept] = copy(params_all_new[p][to_accept])
+                    likelihood_stored[p][to_accept, j] = likelihood_new[to_accept] + prior_new[to_accept]
+                    likelihood_stored[p][to_reject, j] = likelihood[to_reject] + prior[to_reject]
                 E_fit[to_accept, :] = g_new[r<alpha, :]
 
                 # FIXME: add this back in during testing
@@ -232,10 +252,10 @@ def fit_bayes(model, acq_scheme, data, mask=None, nsteps=1000, burn_in=500):
                 if model.parameter_cardinality[p] > 1:
                     for card in range(model.parameter_cardinality[p]):
                         param_conv[p][idx_roi, card, j] = [tform_params(params_all_tform, model.parameter_names, model, 'r')[p][i, card] for i in idx_roi]
-                        acceptance_rate[p][idx_roi, card, j] = accepted[p][idx_roi, card] / ((j+1) * nvox_roi)
+                        acceptance_rate[p][idx_roi, card, j] = accepted[p][idx_roi, card] / (j+1)  # * nvox_roi)
                 elif model.parameter_cardinality[p] == 1:
                     param_conv[p][idx_roi, j] = [tform_params(params_all_tform, model.parameter_names, model, 'r')[p][i] for i in idx_roi]
-                    acceptance_rate[p][idx_roi, j] = accepted[p][idx_roi] / ((j+1) * nvox_roi)
+                    acceptance_rate[p][idx_roi, j] = accepted[p][idx_roi] / (j+1)  # * nvox_roi)
 
             if np.remainder(j, 100) == 0 and 0 < j <= burn_in / 2:
                 for param in parameters_to_fit:
@@ -246,7 +266,11 @@ def fit_bayes(model, acq_scheme, data, mask=None, nsteps=1000, burn_in=500):
                     elif model.parameter_cardinality[param] == 1:
                         w[param][idx_roi] = w[param][idx_roi] * 101 / (2 * (101 - (accepted_per_100[param][idx_roi] / nvox_roi)))
                         accepted_per_100[param] = np.zeros(nvox)
+                    if param == 'C1Stick_1_lambda_par':
+                        if j == 100:
+                            fig, ax = plt.subplots()
+                        ax.scatter(j, w[param][0])
 
     params_all = tform_params(params_all_new, model.parameter_names, model, 'r')
 
-    return acceptance_rate, param_conv, params_all, params_all_orig
+    return acceptance_rate, param_conv, params_all, params_all_orig, likelihood_stored
