@@ -1,7 +1,11 @@
 # load some necessary modules
 from dmipy.core import modeling_framework
 from os.path import join
+import os
+from os import listdir
 import numpy as np
+import nibabel as nib
+from os.path import join as pjoin
 import scipy.stats
 from copy import copy, deepcopy
 import matplotlib.pyplot as plt
@@ -15,6 +19,7 @@ from dmipy.data import saved_acquisition_schemes
 # ball stick and spherical mean ball-stick model
 from dmipy.signal_models import cylinder_models, gaussian_models
 from dmipy.core.modeling_framework import MultiCompartmentSphericalMeanModel, MultiCompartmentModel
+from dmipy.core.acquisition_scheme import acquisition_scheme_from_bvalues
 
 
 # Make axes square
@@ -57,6 +62,42 @@ def sign_par():
     ball = gaussian_models.G1Ball()
     ballstick = MultiCompartmentModel(models=[stick, ball])
     return acq_scheme, nmeas, stick, ball, ballstick
+
+def load_real_data(path_ROIs, path_diff):
+    acq_scheme, nmeas, stick, ball, ballstick = sign_par()
+    bvalues = np.loadtxt(join(path_diff, 'test/bvals.txt'))  # given in s/mm^2
+    bvalues_SI = bvalues * 1e6  # now given in SI units as s/m^2
+    gradient_directions = np.loadtxt(join(path_diff, 'test/bvecs.txt'))  # on the unit sphere
+
+    # The delta and Delta times we know from the HCP documentation in seconds
+    delta = 0.0106  
+    Delta = 0.0431 
+
+    # The acquisition scheme used in the toolbox is then created as follows:
+    acq_scheme = acquisition_scheme_from_bvalues(bvalues_SI, gradient_directions, delta, Delta)
+
+
+    ##-- Reading the DWI nifti image
+    from dipy.io.image import load_nifti
+    image_path= pjoin(path_diff, "data.nii.gz")
+    data, affine, img = load_nifti(image_path, return_img=True)
+
+    ROIs = np.zeros_like(data)
+
+    for idx, roi_im in enumerate(listdir(path_ROIs)):
+        roi_img = nib.load((pjoin(path_ROIs, roi_im))).get_fdata()
+        ROIs[roi_img>0] = idx
+
+
+
+    # plotting an axial slice
+    import matplotlib.pyplot as plt
+    axial_middle = data.shape[2] // 2
+    plt.figure('Axial slice')
+    plt.imshow(data[:, :, axial_middle, 0].T, cmap='gray', origin='lower')
+    plt.show()
+
+    return acq_scheme, data, ballstick, ROIs
 
 
 def load_data():
@@ -105,7 +146,7 @@ def load_data():
 
     # TO DO: should be from LSQs fit - cheat and use GT for now
     # initial voxel-wise estimates
-    Dpar_init = Dpar_sim
+    Dpar_init = Dpar_si
     Diso_init = Diso_sim
     fpar_init = fpar_sim
     fiso_init = 1 - fpar_sim
@@ -147,29 +188,32 @@ def load_data():
 
 def main():
     # FIXME: E_sim and mask need to have dim = [x, y, z, ndw]
-    params_all, E_sim, E_fit, nvox, params_all_correct, mask = load_data()
+    # params_all, E_sim, E_fit, nvox, params_all_correct, mask = load_data()
+    path_ROIs = "/media/full/DATA/Software/Bayes_compartment_inference/Real_data/seg/103818_1"
+    path_diff = "/media/full/DATA/Software/Bayes_compartment_inference/Real_data/TestRetestData/103818_1"
+    acq_scheme, data, ballstick, ROIs = load_real_data(path_ROIs, path_diff)
     # mask = np.ones(E_sim.shape[0])
-    acq_scheme, nmeas, stick, ball, ballstick = sign_par()
+    # acq_scheme, nmeas, stick, ball, ballstick = sign_par()
 
-    params_all_init = copy(params_all)
-    E_sim_init = copy(E_sim)
-    E_fit_init = copy(E_fit)
+    # params_all_init = copy(params_all)
+    # E_sim_init = copy(E_sim)
+    # E_fit_init = copy(E_fit)
 
-    # params_all = copy(params_all_init)
-    E_sim = copy(E_sim_init)
-    E_fit = copy(E_fit_init)
+    # # params_all = copy(params_all_init)
+    # E_sim = copy(E_sim_init)
+    # E_fit = copy(E_fit_init)
 
-    # generalise
+    # # generalise
     model = deepcopy(ballstick)
-    acq_scheme = acq_scheme
-    data = E_sim
+    # acq_scheme = acq_scheme
+    # data = E_sim
     #mask = data[..., 0] > 0
 
     nsteps = 5000
     burn_in = 1200
 
     Proc_start = time.time()
-    acceptance_rate, param_conv, params_all_new, params_all_orig, likelihood_stored = fit_bayes(model, acq_scheme, data, mask, nsteps, burn_in)
+    acceptance_rate, param_conv, params_all_new, params_all_orig, likelihood_stored = fit_bayes(model, acq_scheme, data, ROIs, nsteps, burn_in)
     Compute_time(Proc_start, time.time())
 
     # remove dependent volume fraction from model
