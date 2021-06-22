@@ -15,7 +15,7 @@ import itertools
 import shelve
 
 import fit_bayes
-from fit_bayes import fit, tform_params  # , dict_to_array, array_to_dict
+from fit_bayes import fit, tform_params
 fit_bayes = reload(fit_bayes)
 
 # load HCP acqusition scheme
@@ -369,7 +369,7 @@ def main():
     # plot parameter convergence
     plt.rcParams.update({'font.size': 22})
     lw = 5
-    fig, axs = plt.subplots(2, 3)
+    fig, axs = plt.subplots(2, 4)
 
     axs[0, 0].plot(range(nsteps), param_conv['C1Stick_1_lambda_par'][vox, :], color='tab:red', linewidth=lw)
     axs[0, 0].set_ylabel("Dpar")
@@ -385,6 +385,11 @@ def main():
     axs[0, 2].set_ylabel("fpar")
     axs[0, 2].set_xlabel("MCMC iteration")
     make_square_axes(axs[0, 2])
+
+    axs[0, 3].plot(range(nsteps), param_conv['C1Stick_1_mu'][vox, 0, :], color='tab:purple', linewidth=lw)
+    axs[0, 3].set_ylabel("stick orientation")
+    axs[0, 3].set_xlabel("MCMC iteration")
+    make_square_axes(axs[0, 3])
 
     # plot parameter distributions after burn-in period
     nbins = 10
@@ -414,6 +419,15 @@ def main():
     axs[1, 2].set_ylabel("frequency")
     axs[1, 2].set_xlabel("fpar")
     make_square_axes(axs[1, 2])
+
+    vals = param_conv['C1Stick_1_mu'][vox, 0, burn_in:-1]
+    axs[1, 3].hist(vals, bins=nbins, color='tab:gray', edgecolor='k', alpha=.4, density=False)
+    (mu, sigma) = scipy.stats.norm.fit(vals)
+    x = np.linspace(mu - 3 * sigma, mu + 3 * sigma, 100)
+    axs[1, 3].plot(x, scipy.stats.norm.pdf(x, mu, sigma), color='tab:purple', linewidth=lw)
+    axs[1, 3].set_ylabel("frequency")
+    axs[1, 3].set_xlabel("stick orientation")
+    make_square_axes(axs[1, 3])
 
     # ------------------------------------------------------------------------------------------------------------------
     # plot acceptance rate

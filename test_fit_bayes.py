@@ -1,7 +1,11 @@
 # load some necessary modules
 from dmipy.core import modeling_framework
 from os.path import join
+import os
+from os import listdir
 import numpy as np
+import nibabel as nib
+from os.path import join as pjoin
 import scipy.stats
 from copy import copy, deepcopy
 import matplotlib.pyplot as plt
@@ -19,6 +23,8 @@ from dmipy.data import saved_acquisition_schemes
 # ball stick and spherical mean ball-stick model
 from dmipy.signal_models import cylinder_models, gaussian_models
 from dmipy.core.modeling_framework import MultiCompartmentSphericalMeanModel, MultiCompartmentModel
+from dmipy.core.acquisition_scheme import acquisition_scheme_from_bvalues
+
 
 # Make axes square
 def make_square_axes(ax):
@@ -60,6 +66,43 @@ def sign_par():
     ball = gaussian_models.G1Ball()
     ballstick = MultiCompartmentModel(models=[stick, ball])
     return acq_scheme, nmeas, stick, ball, ballstick
+
+def load_real_data(path_ROIs, path_diff):
+    acq_scheme, nmeas, stick, ball, ballstick = sign_par()
+    bvalues = np.loadtxt(join(path_diff, 'test/bvals.txt'))  # given in s/mm^2
+    bvalues_SI = bvalues * 1e6  # now given in SI units as s/m^2
+    gradient_directions = np.loadtxt(join(path_diff, 'test/bvecs.txt'))  # on the unit sphere
+
+    # The delta and Delta times we know from the HCP documentation in seconds
+    delta = 0.0106
+    Delta = 0.0431
+
+    # The acquisition scheme used in the toolbox is then created as follows:
+    acq_scheme = acquisition_scheme_from_bvalues(bvalues_SI, gradient_directions, delta, Delta)
+
+
+    ##-- Reading the DWI nifti image
+    from dipy.io.image import load_nifti
+    image_path= pjoin(path_diff, "data.nii.gz")
+    data = nib.load(image_path).get_fdata()
+
+    # plotting an axial slice
+    # import matplotlib.pyplot as plt
+    axial_middle = data.shape[2] // 2
+    # plt.figure('Axial slice')
+    # plt.imshow(data[:, :, axial_middle, 0].T, cmap='gray', origin='lower')
+    # plt.show()
+
+    data = data[:, :, axial_middle, :]
+
+    ROIs = np.zeros_like(data[:, :, axial_middle])
+
+    for idx, roi_im in enumerate(listdir(path_ROIs)):
+        roi_img = nib.load((pjoin(path_ROIs, roi_im))).get_fdata()
+        roi_slice = roi_img[:, :, axial_middle]
+        ROIs[roi_slice>0] = idx+1
+
+    return acq_scheme, data, ballstick, ROIs
 
 
 def load_toy_phantom(dimx, dimy):
@@ -148,23 +191,27 @@ def load_toy_phantom(dimx, dimy):
 def main():
 
     # set up acquisition parameters and ballstick model
-    acq_scheme, nmeas, stick, ball, ballstick = sign_par()
+    # acq_scheme, nmeas, stick, ball, ballstick = sign_par()
 
-    dimx = 32
-    dimy = 32
-    params_all, E_sim, E_fit, nvox, params_all_correct, mask = load_toy_phantom(dimx, dimy)
-    params_all_init = copy(params_all)
+    # dimx = 32
+    # dimy = 32
+    # params_all, E_sim, E_fit, nvox, params_all_correct, mask = load_toy_phantom(dimx, dimy)
+    # params_all_init = copy(params_all)
 
-    E_sim_init = copy(E_sim)
-    E_fit_init = copy(E_fit)
+    # E_sim_init = copy(E_sim)
+    # E_fit_init = copy(E_fit)
 
-    E_sim = copy(E_sim_init)
-    E_fit = copy(E_fit_init)
+    # E_sim = copy(E_sim_init)
+    # E_fit = copy(E_fit_init)
+
+    path_ROIs = "/media/full/DATA/Software/Bayes_compartment_inference/Real_data/seg/103818_1"
+    path_diff = "/media/full/DATA/Software/Bayes_compartment_inference/Real_data/TestRetestData/103818_1"
+    acq_scheme, data, ballstick, ROIs = load_real_data(path_ROIs, path_diff)
+    mask = ROIs
 
     # generalise
     model = deepcopy(ballstick)
-    acq_scheme = acq_scheme
-    data = E_sim
+    # data = E_sim
     #mask = data[..., 0] > 0
 
     nsteps = 5000
@@ -192,11 +239,11 @@ def main():
                                 param_conv['C1Stick_1_mu'][1, 0, :]])
 
     # print: initialisation, correct value, mean (after burn-in) Bayes-fitted value
-    print((params_all_orig['C1Stick_1_lambda_par'][0], params_all_correct[0, 0], np.mean(param_conv_vec[0, burn_in:-1])))  # , params_all_new[2, 0]))
-    print((params_all_orig['G1Ball_1_lambda_iso'][0], params_all_correct[1, 0], np.mean(param_conv_vec[1, burn_in:-1])))  # , params_all_new[3, 0]))
-    print((params_all_orig['partial_volume_0'][0], params_all_correct[2, 0], np.mean(param_conv_vec[2, burn_in:-1])))  # , params_all_new[4, 0]))
-    print((params_all_orig['C1Stick_1_mu'][0, 0], params_all_correct[3, 0], np.mean(param_conv_vec[3, burn_in:-1])))  # , params_all_new[0, 0]))
-    print((params_all_orig['C1Stick_1_mu'][0, 1], params_all_correct[4, 0], np.mean(param_conv_vec[4, burn_in:-1])))  # , params_all_new[1, 0]))
+    # print((params_all_orig['C1Stick_1_lambda_par'][0], params_all_correct[0, 0], np.mean(param_conv_vec[0, burn_in:-1])))  # , params_all_new[2, 0]))
+    # print((params_all_orig['G1Ball_1_lambda_iso'][0], params_all_correct[1, 0], np.mean(param_conv_vec[1, burn_in:-1])))  # , params_all_new[3, 0]))
+    # print((params_all_orig['partial_volume_0'][0], params_all_correct[2, 0], np.mean(param_conv_vec[2, burn_in:-1])))  # , params_all_new[4, 0]))
+    # print((params_all_orig['C1Stick_1_mu'][0, 0], params_all_correct[3, 0], np.mean(param_conv_vec[3, burn_in:-1])))  # , params_all_new[0, 0]))
+    # print((params_all_orig['C1Stick_1_mu'][0, 1], params_all_correct[4, 0], np.mean(param_conv_vec[4, burn_in:-1])))  # , params_all_new[1, 0]))
 
     # plot parameter convergence
     fig, ax = plt.subplots(2, 3)

@@ -277,7 +277,7 @@ def fit(model, acq_scheme, data, mask=None, nsteps=1000, burn_in=500):
             if np.remainder(j, 100) == 0 and 0 < j <= burn_in / 2:
                 for param in parameters_to_fit:
                     if model.parameter_cardinality[param] > 1:
-                        for card in range(model.parameter_cardinality[p]):
+                        for card in range(model.parameter_cardinality[param]):
                             # w[param][idx_roi, card] = w[param][idx_roi, card] * (101 / (2 * (101 - (accepted_per_100[param][idx_roi, card] / nvox_roi))))
                             # w[param][idx_roi, card] = w[param][idx_roi, card] * (101 / (2 * (101 - (accepted_per_100[param][idx_roi, card]))))
                             w[param][idx_roi, card] = w[param][idx_roi, card] * (101 / (2 * (101 - (accepted_per_100[param][idx_roi, card])/model.parameter_cardinality[param])))
@@ -294,7 +294,7 @@ def fit(model, acq_scheme, data, mask=None, nsteps=1000, burn_in=500):
                         if model.parameter_cardinality[param] > 1:
                             col = ['tab:purple', 'tab:pink']
                             mkr = ['v', '^']
-                            for card in range(model.parameter_cardinality[p]):
+                            for card in range(model.parameter_cardinality[param]):
                                 lb = (model.parameter_ranges[param][card][0] - 1e-5) * model.parameter_scales[param][card]  # lower bound
                                 ub = (model.parameter_ranges[param][card][1] + 1e-5) * model.parameter_scales[param][card]  # upper bound
                                 # tmp = (lb + ub * np.exp(w[param][card][vox])) / (1 + np.exp(w[param][card][vox]))
