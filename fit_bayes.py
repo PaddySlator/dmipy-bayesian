@@ -45,6 +45,7 @@ def fit_bayes(model, acq_scheme, data, mask=None, nsteps=1000, burn_in=500):
 
     # extract ROIs if present in mask
     roi_vals = np.unique(mask)  # list of unique integers that identify each ROI
+    roi_vals = roi_vals[roi_vals>0]
     nroi = roi_vals.shape[0]  # no. ROIs
 
     # extract other useful values
@@ -150,9 +151,10 @@ def fit_bayes(model, acq_scheme, data, mask=None, nsteps=1000, burn_in=500):
             likelihood_stored[param] = np.zeros((nvox, nsteps))
 
     # loop over ROIs
-    for roi in range(nroi):
-        idx_roi = [xx for xx, x in enumerate(mask == roi_vals[roi]) if x]  # indices into mask of voxels in ROI
-        nvox_roi = idx_roi.__len__()  # no. voxels in ROI
+    for roi in range(1,nroi):
+        # idx_roi = [xx for xx, x in enumerate(mask == roi_vals[roi]) if x]  # indices into mask of voxels in ROI
+        idx_roi = np.where(mask==roi)  # indices into mask of voxels in ROI
+        nvox_roi = idx_roi[0].__len__()  # no. voxels in ROI
 
         # NB i (voxel loop) and j (MC loop) in keeping with Orton paper
         for j in range(0, nsteps):

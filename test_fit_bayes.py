@@ -80,22 +80,23 @@ def load_real_data(path_ROIs, path_diff):
     ##-- Reading the DWI nifti image
     from dipy.io.image import load_nifti
     image_path= pjoin(path_diff, "data.nii.gz")
-    data, affine, img = load_nifti(image_path, return_img=True)
+    data = nib.load(image_path).get_fdata()
+    
+    # plotting an axial slice
+    # import matplotlib.pyplot as plt
+    axial_middle = data.shape[2] // 2
+    # plt.figure('Axial slice')
+    # plt.imshow(data[:, :, axial_middle, 0].T, cmap='gray', origin='lower')
+    # plt.show()
 
-    ROIs = np.zeros_like(data)
+    data = data[:, :, axial_middle, :]
+
+    ROIs = np.zeros_like(data[:, :, axial_middle])
 
     for idx, roi_im in enumerate(listdir(path_ROIs)):
         roi_img = nib.load((pjoin(path_ROIs, roi_im))).get_fdata()
-        ROIs[roi_img>0] = idx
-
-
-
-    # plotting an axial slice
-    import matplotlib.pyplot as plt
-    axial_middle = data.shape[2] // 2
-    plt.figure('Axial slice')
-    plt.imshow(data[:, :, axial_middle, 0].T, cmap='gray', origin='lower')
-    plt.show()
+        roi_slice = roi_img[:, :, axial_middle]
+        ROIs[roi_slice>0] = idx+1
 
     return acq_scheme, data, ballstick, ROIs
 
