@@ -315,7 +315,7 @@ def main():
     mask[mask > 0] = 1
     # mask = np.ones(np.prod(dims))
 
-    nsteps = 5000  # 5000
+    nsteps = 6000  # 5000
     burn_in = 3000  # 1500
 
     # LSQ fitting
