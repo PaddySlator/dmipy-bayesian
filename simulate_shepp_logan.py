@@ -282,7 +282,7 @@ def load_toy_phantom(dimx, dimy, model, acq_scheme):
     Dpar_sim = 1.7e-9 + np.random.normal(0, 0.1e-9, nvox)
     Diso_sim = 2.5e-9 + np.random.normal(0, 0.1e-9, nvox)
     fpar_sim = 0.3 + np.random.normal(0, 0.025, nvox)
-    stick_ori_sim = (np.pi, 0) + np.random.normal(0, 0.11, (nvox, 2))
+    stick_ori_sim = (np.pi / 2, 0) + np.random.normal(0, 0.11, (nvox, 2))
     parameter_vector = model.parameters_to_parameter_vector(
         C1Stick_1_mu=stick_ori_sim,
         C1Stick_1_lambda_par=Dpar_sim,
@@ -306,8 +306,8 @@ def main():
 
     # simulate Shepp-Logan data
     snr = 25
-    dims = [32, 32, 1]
-    # dims = [64, 64, 1]
+    # dims = [32, 32, 1]
+    dims = [64, 64, 1]
     # dims = [10, 10, 1]
     parameter_vector_correct, mask, data, m0 = load_shepp_phantom(dims, model, acq_scheme, snr)
     # parameter_vector_correct, mask, data = load_toy_phantom(dims[0], dims[1], model, acq_scheme)
@@ -315,8 +315,8 @@ def main():
     mask[mask > 0] = 1
     # mask = np.ones(np.prod(dims))
 
-    nsteps = 6000  # 5000
-    burn_in = 3000  # 1500
+    nsteps = 5000  # 5000
+    burn_in = 2000  # 1500
 
     # LSQ fitting
     lsq_fit = model.fit(acq_scheme, data, mask=mask)
@@ -336,7 +336,10 @@ def main():
                  roi_nvox[roi] < 2 * nparams]  # indices of ROIs with too few voxels
     roi_vals = np.delete(roi_vals, to_remove)
     idx_roi = [xx for xx, x in enumerate(mask == roi_vals[0]) if x]
-    vox = idx_roi[0]
+    vox1 = idx_roi[0]
+    vox2 = idx_roi[1]
+    vox3 = idx_roi[2]
+    vox4 = idx_roi[3]
 
     # ------------------------------------------------------------------------------------------------------------------
     # filename = '/home/epowell/code/python/dmipy-bayesian/data/shepp_logan_' + str(dims[0]) + 'x' + str(dims[1]) \
@@ -344,26 +347,26 @@ def main():
     # save_workspace(filename)
 
     # ------------------------------------------------------------------------------------------------------------------
-    print((parameter_vector_init['C1Stick_1_lambda_par'][vox],
-           parameter_vector_correct['C1Stick_1_lambda_par'][vox],
-           parameter_vector_lsq['C1Stick_1_lambda_par'][vox],
-           np.mean(param_conv['C1Stick_1_lambda_par'][vox, burn_in:-1])))
-    print((parameter_vector_init['G1Ball_1_lambda_iso'][vox],
-           parameter_vector_correct['G1Ball_1_lambda_iso'][vox],
-           parameter_vector_lsq['G1Ball_1_lambda_iso'][vox],
-           np.mean(param_conv['G1Ball_1_lambda_iso'][vox, burn_in:-1])))
-    print((parameter_vector_init['partial_volume_0'][vox],
-           parameter_vector_correct['partial_volume_0'][vox],
-           parameter_vector_lsq['partial_volume_0'][vox],
-           np.mean(param_conv['partial_volume_0'][vox, burn_in:-1])))
-    print((parameter_vector_init['C1Stick_1_mu'][vox, 0],
-           parameter_vector_correct['C1Stick_1_mu'][vox, 0],
-           parameter_vector_lsq['C1Stick_1_mu'][vox, 0],
-           np.mean(param_conv['C1Stick_1_mu'][vox, 0, burn_in:-1])))
-    print((parameter_vector_init['C1Stick_1_mu'][vox, 1],
-           parameter_vector_correct['C1Stick_1_mu'][vox, 1],
-           parameter_vector_lsq['C1Stick_1_mu'][vox, 1],
-           np.mean(param_conv['C1Stick_1_mu'][vox, 1, burn_in:-1])))
+    print((parameter_vector_init['C1Stick_1_lambda_par'][vox1],
+           parameter_vector_correct['C1Stick_1_lambda_par'][vox1],
+           parameter_vector_lsq['C1Stick_1_lambda_par'][vox1],
+           np.mean(param_conv['C1Stick_1_lambda_par'][vox1, burn_in:-1])))
+    print((parameter_vector_init['G1Ball_1_lambda_iso'][vox2],
+           parameter_vector_correct['G1Ball_1_lambda_iso'][vox2],
+           parameter_vector_lsq['G1Ball_1_lambda_iso'][vox2],
+           np.mean(param_conv['G1Ball_1_lambda_iso'][vox2, burn_in:-1])))
+    print((parameter_vector_init['partial_volume_0'][vox3],
+           parameter_vector_correct['partial_volume_0'][vox3],
+           parameter_vector_lsq['partial_volume_0'][vox3],
+           np.mean(param_conv['partial_volume_0'][vox3, burn_in:-1])))
+    print((parameter_vector_init['C1Stick_1_mu'][vox4, 0],
+           parameter_vector_correct['C1Stick_1_mu'][vox4, 0],
+           parameter_vector_lsq['C1Stick_1_mu'][vox4, 0],
+           np.mean(param_conv['C1Stick_1_mu'][vox4, 0, burn_in:-1])))
+    print((parameter_vector_init['C1Stick_1_mu'][vox4, 1],
+           parameter_vector_correct['C1Stick_1_mu'][vox4, 1],
+           parameter_vector_lsq['C1Stick_1_mu'][vox4, 1],
+           np.mean(param_conv['C1Stick_1_mu'][vox4, 1, burn_in:-1])))
 
     # ------------------------------------------------------------------------------------------------------------------
     # plot parameter convergence
@@ -371,61 +374,73 @@ def main():
     lw = 5
     fig, axs = plt.subplots(2, 4)
 
-    axs[0, 0].plot(range(nsteps), param_conv['C1Stick_1_lambda_par'][vox, :], color='tab:red', linewidth=lw)
+    axs[0, 0].plot(range(nsteps), param_conv['C1Stick_1_lambda_par'][vox1, :], color='seagreen', linewidth=lw)
+    axs[0, 0].plot(np.array([0, nsteps]), np.tile(parameter_vector_correct['C1Stick_1_lambda_par'][vox1], 2), 'k--', linewidth=np.floor(lw/2))
     axs[0, 0].set_ylabel("Dpar")
     axs[0, 0].set_xlabel("MCMC iteration")
+    axs[0, 0].set_ylim([model.parameter_ranges['C1Stick_1_lambda_par'][0]*1e-9, model.parameter_ranges['C1Stick_1_lambda_par'][1]*1e-9])
     make_square_axes(axs[0, 0])
 
-    axs[0, 1].plot(range(nsteps), param_conv['G1Ball_1_lambda_iso'][vox, :], color='tab:green', linewidth=lw)
+    axs[0, 1].plot(range(nsteps), param_conv['G1Ball_1_lambda_iso'][vox2, :], color='steelblue', linewidth=lw)
+    axs[0, 1].plot(np.array([0, nsteps]), np.tile(parameter_vector_correct['G1Ball_1_lambda_iso'][vox2], 2), 'k--', linewidth=np.floor(lw/2))
     axs[0, 1].set_ylabel("Diso")
     axs[0, 1].set_xlabel("MCMC iteration")
+    axs[0, 1].set_ylim([model.parameter_ranges['G1Ball_1_lambda_iso'][0]*1e-9, model.parameter_ranges['G1Ball_1_lambda_iso'][1]*1e-9])
     make_square_axes(axs[0, 1])
 
-    axs[0, 2].plot(range(nsteps), param_conv['partial_volume_0'][vox, :], color='tab:blue', linewidth=lw)
+    axs[0, 2].plot(range(nsteps), param_conv['partial_volume_0'][vox3, :], color='indigo', linewidth=lw)
+    axs[0, 2].plot(np.array([0, nsteps]), np.tile(parameter_vector_correct['partial_volume_0'][vox3], 2), 'k--', linewidth=np.floor(lw/2))
     axs[0, 2].set_ylabel("fpar")
     axs[0, 2].set_xlabel("MCMC iteration")
+    axs[0, 2].set_ylim(model.parameter_ranges['partial_volume_0'])
     make_square_axes(axs[0, 2])
 
-    axs[0, 3].plot(range(nsteps), param_conv['C1Stick_1_mu'][vox, 0, :], color='tab:purple', linewidth=lw)
+    axs[0, 3].plot(range(nsteps), param_conv['C1Stick_1_mu'][vox4, 0, :], color='gold', linewidth=lw)
+    axs[0, 3].plot(np.array([0, nsteps]), np.tile(parameter_vector_correct['C1Stick_1_mu'][vox4, 0], 2), 'k--', linewidth=np.floor(lw/2))
     axs[0, 3].set_ylabel("stick orientation")
     axs[0, 3].set_xlabel("MCMC iteration")
+    axs[0, 3].set_ylim(model.parameter_ranges['C1Stick_1_mu'][0])
     make_square_axes(axs[0, 3])
 
     # plot parameter distributions after burn-in period
     nbins = 10
-    vals = param_conv['C1Stick_1_lambda_par'][vox, burn_in:-1]*1e9  # multiply by 1e9 so gaussian has same scaling
-    axs[1, 0].hist(vals, bins=nbins, color='tab:gray', edgecolor='k', alpha=.4, density=False)
+    vals = param_conv['C1Stick_1_lambda_par'][vox1, burn_in:-1]*1e9  # multiply by 1e9 so gaussian has same scaling
     (mu, sigma) = scipy.stats.norm.fit(vals)
     x = np.linspace(mu - 3 * sigma, mu + 3 * sigma, 100)
-    axs[1, 0].plot(x, scipy.stats.norm.pdf(x, mu, sigma), color='tab:red', linewidth=lw)
-    axs[1, 0].set_ylabel("frequency")
+    axs[1, 0].hist(vals, bins=nbins, color='tab:gray', edgecolor='k', alpha=.4, density=True)
+    axs[1, 0].plot(x, scipy.stats.norm.pdf(x, mu, sigma), color='seagreen', linewidth=lw)
+    axs[1, 0].plot(np.tile(parameter_vector_correct['C1Stick_1_lambda_par'][vox1]*1e9, 2), np.array([0, np.max(np.histogram(vals, bins=nbins, density=True)[0])]), 'k--', linewidth=np.floor(lw/2))
+    axs[1, 0].set_ylabel("frequency density")
     axs[1, 0].set_xlabel("Dpar")
     make_square_axes(axs[1, 0])
 
-    vals = param_conv['G1Ball_1_lambda_iso'][vox, burn_in:-1]*1e9   # multiply by 1e9 so gaussian has same scaling
-    axs[1, 1].hist(vals, bins=nbins, color='tab:gray', edgecolor='k', alpha=.4, density=False)
+    vals = param_conv['G1Ball_1_lambda_iso'][vox2, burn_in:-1]*1e9   # multiply by 1e9 so gaussian has same scaling
     (mu, sigma) = scipy.stats.norm.fit(vals)
     x = np.linspace(mu - 3 * sigma, mu + 3 * sigma, 100)
-    axs[1, 1].plot(x, scipy.stats.norm.pdf(x, mu, sigma), color='tab:green', linewidth=lw)
-    axs[1, 1].set_ylabel("frequency")
+    axs[1, 1].hist(vals, bins=nbins, color='tab:gray', edgecolor='k', alpha=.4, density=True)
+    axs[1, 1].plot(x, scipy.stats.norm.pdf(x, mu, sigma), color='steelblue', linewidth=lw)
+    axs[1, 1].plot(np.tile(parameter_vector_correct['G1Ball_1_lambda_iso'][vox2]*1e9, 2), np.array([0, np.max(np.histogram(vals, bins=nbins, density=True)[0])]), 'k--', linewidth=np.floor(lw/2))
+    axs[1, 1].set_ylabel("frequency density")
     axs[1, 1].set_xlabel("Diso")
     make_square_axes(axs[1, 1])
 
-    vals = param_conv['partial_volume_0'][vox, burn_in:-1]
-    axs[1, 2].hist(vals, bins=nbins, color='tab:gray', edgecolor='k', alpha=.4, density=False)
+    vals = param_conv['partial_volume_0'][vox3, burn_in:-1]
     (mu, sigma) = scipy.stats.norm.fit(vals)
     x = np.linspace(mu - 3 * sigma, mu + 3 * sigma, 100)
-    axs[1, 2].plot(x, scipy.stats.norm.pdf(x, mu, sigma), color='tab:blue', linewidth=lw)
-    axs[1, 2].set_ylabel("frequency")
+    axs[1, 2].hist(vals, bins=nbins, color='tab:gray', edgecolor='k', alpha=.4, density=True)
+    axs[1, 2].plot(x, scipy.stats.norm.pdf(x, mu, sigma), color='indigo', linewidth=lw)
+    axs[1, 2].plot(np.tile(parameter_vector_correct['partial_volume_0'][vox3], 2), np.array([0, np.max(np.histogram(vals, bins=nbins, density=True)[0])]), 'k--', linewidth=np.floor(lw/2))
+    axs[1, 2].set_ylabel("frequency density")
     axs[1, 2].set_xlabel("fpar")
     make_square_axes(axs[1, 2])
 
-    vals = param_conv['C1Stick_1_mu'][vox, 0, burn_in:-1]
-    axs[1, 3].hist(vals, bins=nbins, color='tab:gray', edgecolor='k', alpha=.4, density=False)
+    vals = param_conv['C1Stick_1_mu'][vox4, 0, burn_in:-1]
     (mu, sigma) = scipy.stats.norm.fit(vals)
     x = np.linspace(mu - 3 * sigma, mu + 3 * sigma, 100)
-    axs[1, 3].plot(x, scipy.stats.norm.pdf(x, mu, sigma), color='tab:purple', linewidth=lw)
-    axs[1, 3].set_ylabel("frequency")
+    axs[1, 3].hist(vals, bins=nbins, color='tab:gray', edgecolor='k', alpha=.4, density=True)
+    axs[1, 3].plot(x, scipy.stats.norm.pdf(x, mu, sigma), color='gold', linewidth=lw)
+    axs[1, 3].plot(np.tile(parameter_vector_correct['C1Stick_1_mu'][vox4, 0], 2), np.array([0, np.max(np.histogram(vals, bins=nbins, density=True)[0])]), 'k--', linewidth=np.floor(lw/2))
+    axs[1, 3].set_ylabel("frequency density")
     axs[1, 3].set_xlabel("stick orientation")
     make_square_axes(axs[1, 3])
 
@@ -433,78 +448,117 @@ def main():
     # plot acceptance rate
     fig, axs = plt.subplots(1, 2)
     axs[0].set_ylabel("Acceptance Rate")
-    axs[0].plot(range(nsteps), acceptance_rate['C1Stick_1_lambda_par'][vox], color='tab:red', linewidth=lw)
-    axs[0].plot(range(nsteps), acceptance_rate['G1Ball_1_lambda_iso'][vox, :], color='tab:green', linewidth=lw)
-    axs[0].plot(range(nsteps), acceptance_rate['partial_volume_0'][vox, :], color='tab:blue', linewidth=lw)
-    axs[0].plot(range(nsteps), acceptance_rate['C1Stick_1_mu'][vox, 0, :], color='tab:olive', linewidth=lw)
+    axs[0].plot(range(nsteps), acceptance_rate['C1Stick_1_lambda_par'][vox1], color='seagreen', linewidth=lw)
+    axs[0].plot(range(nsteps), acceptance_rate['G1Ball_1_lambda_iso'][vox2, :], color='steelblue', linewidth=lw)
+    axs[0].plot(range(nsteps), acceptance_rate['partial_volume_0'][vox3, :], color='indigo', linewidth=lw)
+    axs[0].plot(range(nsteps), acceptance_rate['C1Stick_1_mu'][vox4, 0, :], color='gold', linewidth=lw)
     axs[0].legend(['Dpar', 'Diso', 'fpar', 'mu'])
 
     # plot likelihood
     axs[1].set_ylabel("Likelihood")
-    axs[1].plot(range(nsteps), likelihood_stored['C1Stick_1_lambda_par'][vox, :], color='tab:red', linewidth=lw)
-    axs[1].plot(range(nsteps), likelihood_stored['G1Ball_1_lambda_iso'][vox, :], color='tab:green', linewidth=lw)
-    axs[1].plot(range(nsteps), likelihood_stored['partial_volume_0'][vox, :], color='tab:blue', linewidth=lw)
-    axs[1].plot(range(nsteps), likelihood_stored['C1Stick_1_mu'][vox, 0, :], color='tab:olive', linewidth=lw)
+    axs[1].plot(range(nsteps), likelihood_stored['C1Stick_1_lambda_par'][vox1, :], color='seagreen', linewidth=lw)
+    axs[1].plot(range(nsteps), likelihood_stored['G1Ball_1_lambda_iso'][vox2, :], color='steelblue', linewidth=lw)
+    axs[1].plot(range(nsteps), likelihood_stored['partial_volume_0'][vox3, :], color='indigo', linewidth=lw)
+    axs[1].plot(range(nsteps), likelihood_stored['C1Stick_1_mu'][vox4, 0, :], color='gold', linewidth=lw)
     axs[1].legend(['Dpar', 'Diso', 'fpar', 'mu'])
 
     # ------------------------------------------------------------------------------------------------------------------
     # plot maps: GT, LSQ, Bayes
-    fig = plt.figure(figsize=(3, 3))
-    grid = AxesGrid(fig, 111, nrows_ncols=(3, 3), axes_pad=0.7, cbar_mode='each')
-    cmap_D = mpl.cm.inferno
-    # viridis = mpl.cm.get_cmap('viridis')
+    fig = plt.figure(figsize=(3, 4))
+    grid = AxesGrid(fig, 111, nrows_ncols=(3, 4), axes_pad=0.7, cbar_mode='each')
     viridis = mpl.cm.viridis
     viridis.colors[0] = [0, 0, 0]
-    viridis.colors[1] = [0, 0, 0]
-    cmap_f = viridis
+    cmap_D = copy(mpl.cm.BuPu_r)  # inferno
+    cmap_D.set_bad(color='k')
+    cmap_f = copy(mpl.cm.OrRd_r)  # viridis
+    cmap_f.set_bad(color='k')
+    cmap_mu = copy(mpl.cm.YlGn_r)  # viridis
+    cmap_mu.set_bad(color='k')
     clims_D = [.1e-9, 3e-9]
-    clims_f = [0, 1]
+    clims_f = [0, .75]
+    clims_mu = [0, np.pi]
 
     # GT
-    grid[0].imshow(np.reshape(parameter_vector_correct['C1Stick_1_lambda_par'], dims), vmin=clims_D[0], vmax=clims_D[1], cmap=cmap_D)
+    im = np.reshape(parameter_vector_correct['C1Stick_1_lambda_par'], dims)
+    im = np.ma.masked_where(im == 0, im)
+    grid[0].imshow(im, vmin=clims_D[0], vmax=clims_D[1], cmap=cmap_D)
     grid[0].set_title('GT, Dpar')
-    fig.colorbar(mpl.cm.ScalarMappable(norm=mpl.colors.Normalize(vmin=clims_D[0], vmax=clims_D[1]), cmap=cmap_D), cax=grid[0].cax, orientation='vertical', label='Some Units')
+    # fig.colorbar(mpl.cm.ScalarMappable(norm=mpl.colors.Normalize(vmin=clims_D[0], vmax=clims_D[1]), cmap=cmap_D), cax=grid[0].cax, orientation='vertical', label='m^2/s')
 
-    grid[1].imshow(np.reshape(parameter_vector_correct['G1Ball_1_lambda_iso'], dims), vmin=clims_D[0], vmax=clims_D[1], cmap=cmap_D)
+    im = np.reshape(parameter_vector_correct['G1Ball_1_lambda_iso'], dims)
+    im = np.ma.masked_where(im == 0, im)
+    grid[1].imshow(im, vmin=clims_D[0], vmax=clims_D[1], cmap=cmap_D)
     grid[1].set_title('GT, Diso')
-    fig.colorbar(mpl.cm.ScalarMappable(norm=mpl.colors.Normalize(vmin=clims_D[0], vmax=clims_D[1]), cmap=cmap_D), cax=grid[1].cax, orientation='vertical', label='Some Units')
+    # fig.colorbar(mpl.cm.ScalarMappable(norm=mpl.colors.Normalize(vmin=clims_D[0], vmax=clims_D[1]), cmap=cmap_D), cax=grid[1].cax, orientation='vertical', label='m^2/s')
 
-    grid[2].imshow(np.reshape(parameter_vector_correct['partial_volume_0'], dims), vmin=clims_f[0], vmax=clims_f[1], cmap=cmap_f)
+    im = np.reshape(parameter_vector_correct['partial_volume_0'], dims)
+    im = np.ma.masked_where(im == 0, im)
+    grid[2].imshow(im, vmin=clims_f[0], vmax=clims_f[1], cmap=cmap_f)
     grid[2].set_title('GT, fpar')
-    fig.colorbar(mpl.cm.ScalarMappable(norm=mpl.colors.Normalize(vmin=clims_f[0], vmax=clims_f[1]), cmap=cmap_f), cax=grid[2].cax, orientation='vertical', label='Some Units')
+    # fig.colorbar(mpl.cm.ScalarMappable(norm=mpl.colors.Normalize(vmin=clims_f[0], vmax=clims_f[1]), cmap=cmap_f), cax=grid[2].cax, orientation='vertical', label='')
+
+    im = np.reshape(parameter_vector_correct['C1Stick_1_mu'][:, 0], dims)
+    im = np.ma.masked_where(im == 0, im)
+    grid[3].imshow(im, vmin=clims_mu[0], vmax=clims_mu[1], cmap=cmap_mu)
+    grid[3].set_title('GT, mu')
+    # fig.colorbar(mpl.cm.ScalarMappable(norm=mpl.colors.Normalize(vmin=clims_mu[0], vmax=clims_mu[1]), cmap=cmap_mu), cax=grid[3].cax, orientation='vertical', label='')
 
     # LSQ
-    grid[3].imshow(np.reshape(parameter_vector_lsq['C1Stick_1_lambda_par'], dims), vmin=clims_D[0], vmax=clims_D[1], cmap=cmap_D)
-    grid[3].set_title('GT, Dpar')
-    fig.colorbar(mpl.cm.ScalarMappable(norm=mpl.colors.Normalize(vmin=clims_D[0], vmax=clims_D[1]), cmap=cmap_D), cax=grid[3].cax, orientation='vertical', label='Some Units')
+    im = np.reshape(parameter_vector_lsq['C1Stick_1_lambda_par'], dims)
+    im = np.ma.masked_where(im == 0, im)
+    grid[4].imshow(im, vmin=clims_D[0], vmax=clims_D[1], cmap=cmap_D)
+    grid[4].set_title('LSQ, Dpar')
+    # fig.colorbar(mpl.cm.ScalarMappable(norm=mpl.colors.Normalize(vmin=clims_D[0], vmax=clims_D[1]), cmap=cmap_D), cax=grid[4].cax, orientation='vertical', label='m^2/s')
 
-    grid[4].imshow(np.reshape(parameter_vector_lsq['G1Ball_1_lambda_iso'], dims), vmin=clims_D[0], vmax=clims_D[1], cmap=cmap_D)
-    grid[4].set_title('GT, Diso')
-    fig.colorbar(mpl.cm.ScalarMappable(norm=mpl.colors.Normalize(vmin=clims_D[0], vmax=clims_D[1]), cmap=cmap_D), cax=grid[4].cax, orientation='vertical', label='Some Units')
+    im = np.reshape(parameter_vector_lsq['G1Ball_1_lambda_iso'], dims)
+    im = np.ma.masked_where(im == 0, im)
+    grid[5].imshow(im, vmin=clims_D[0], vmax=clims_D[1], cmap=cmap_D)
+    grid[5].set_title('LSQ, Diso')
+    # fig.colorbar(mpl.cm.ScalarMappable(norm=mpl.colors.Normalize(vmin=clims_D[0], vmax=clims_D[1]), cmap=cmap_D), cax=grid[5].cax, orientation='vertical', label='m^2/s')
 
-    grid[5].imshow(np.reshape(parameter_vector_lsq['partial_volume_0'], dims), vmin=clims_f[0], vmax=clims_f[1], cmap=cmap_f)
-    grid[5].set_title('GT, fpar')
-    fig.colorbar(mpl.cm.ScalarMappable(norm=mpl.colors.Normalize(vmin=clims_f[0], vmax=clims_f[1]), cmap=cmap_f), cax=grid[5].cax, orientation='vertical', label='Some Units')
+    im = np.reshape(parameter_vector_lsq['partial_volume_0'], dims)
+    im = np.ma.masked_where(im == 0, im)
+    grid[6].imshow(im, vmin=clims_f[0], vmax=clims_f[1], cmap=cmap_f)
+    grid[6].set_title('LSQ, fpar')
+    # fig.colorbar(mpl.cm.ScalarMappable(norm=mpl.colors.Normalize(vmin=clims_f[0], vmax=clims_f[1]), cmap=cmap_f), cax=grid[6].cax, orientation='vertical', label='')
+
+    im = np.reshape(parameter_vector_lsq['C1Stick_1_mu'][:, 0], dims)
+    im = np.ma.masked_where(im == 0, im)
+    grid[7].imshow(im, vmin=clims_mu[0], vmax=clims_mu[1], cmap=cmap_mu)
+    grid[7].set_title('LSQ, mu')
+    # fig.colorbar(mpl.cm.ScalarMappable(norm=mpl.colors.Normalize(vmin=clims_mu[0], vmax=clims_mu[1]), cmap=cmap_mu), cax=grid[7].cax, orientation='vertical', label='')
 
     # Bayes
-    grid[6].imshow(np.reshape(parameter_vector_bayes['C1Stick_1_lambda_par'], dims), vmin=clims_D[0], vmax=clims_D[1], cmap=cmap_D)
-    grid[6].set_title('GT, Dpar')
-    fig.colorbar(mpl.cm.ScalarMappable(norm=mpl.colors.Normalize(vmin=clims_D[0], vmax=clims_D[1]), cmap=cmap_D), cax=grid[6].cax, orientation='vertical', label='Some Units')
+    im = np.reshape(parameter_vector_bayes['C1Stick_1_lambda_par'], dims)
+    im = np.ma.masked_where(im == 0, im)
+    grid[8].imshow(im, vmin=clims_D[0], vmax=clims_D[1], cmap=cmap_D)
+    grid[8].set_title('Bayes, Dpar')
+    fig.colorbar(mpl.cm.ScalarMappable(norm=mpl.colors.Normalize(vmin=clims_D[0], vmax=clims_D[1]), cmap=cmap_D), cax=grid[8].cax, orientation='horizontal', label='m^2/s')
 
-    grid[7].imshow(np.reshape(parameter_vector_bayes['G1Ball_1_lambda_iso'], dims), vmin=clims_D[0], vmax=clims_D[1], cmap=cmap_D)
-    grid[7].set_title('GT, Diso')
-    fig.colorbar(mpl.cm.ScalarMappable(norm=mpl.colors.Normalize(vmin=clims_D[0], vmax=clims_D[1]), cmap=cmap_D), cax=grid[7].cax, orientation='vertical', label='Some Units')
+    im = np.reshape(parameter_vector_bayes['G1Ball_1_lambda_iso'], dims)
+    im = np.ma.masked_where(im == 0, im)
+    grid[9].imshow(im, vmin=clims_D[0], vmax=clims_D[1], cmap=cmap_D)
+    grid[9].set_title('Bayes, Diso')
+    fig.colorbar(mpl.cm.ScalarMappable(norm=mpl.colors.Normalize(vmin=clims_D[0], vmax=clims_D[1]), cmap=cmap_D), cax=grid[9].cax, orientation='horizontal', label='m^2/s')
 
-    grid[8].imshow(np.reshape(parameter_vector_bayes['partial_volume_0'], dims), vmin=clims_f[0], vmax=clims_f[1], cmap=cmap_f)
-    grid[8].set_title('GT, fpar')
-    fig.colorbar(mpl.cm.ScalarMappable(norm=mpl.colors.Normalize(vmin=clims_f[0], vmax=clims_f[1]), cmap=cmap_f), cax=grid[8].cax, orientation='vertical', label='Some Units')
+    im = np.reshape(parameter_vector_bayes['partial_volume_0'], dims)
+    im = np.ma.masked_where(im == 0, im)
+    grid[10].imshow(im, vmin=clims_f[0], vmax=clims_f[1], cmap=cmap_f)
+    grid[10].set_title('Bayes, fpar')
+    fig.colorbar(mpl.cm.ScalarMappable(norm=mpl.colors.Normalize(vmin=clims_f[0], vmax=clims_f[1]), cmap=cmap_f), cax=grid[10].cax, orientation='horizontal', label='% error')
+
+    im = np.reshape(parameter_vector_bayes['C1Stick_1_mu'][:, 0], dims)
+    im = np.ma.masked_where(im == 0, im)
+    grid[11].imshow(im, vmin=clims_mu[0], vmax=clims_mu[1], cmap=cmap_mu)
+    grid[11].set_title('Bayes, mu')
+    fig.colorbar(mpl.cm.ScalarMappable(norm=mpl.colors.Normalize(vmin=clims_mu[0], vmax=clims_mu[1]), cmap=cmap_mu), cax=grid[11].cax, orientation='horizontal', label='')
 
     # ------------------------------------------------------------------------------------------------------------------
     # plot error maps: (GT-fit)/GT; fit = LSQ or Bayes
     fig = plt.figure(figsize=(2, 3))
     grid = AxesGrid(fig, 111, nrows_ncols=(2, 3), axes_pad=0.5, cbar_mode='each')
     cmap_err = mpl.cm.seismic
-    clims_err = [-5, 5]
+    clims_err = [-10, 10]
 
     # LSQ
     err = 100 * (np.reshape(parameter_vector_lsq['C1Stick_1_lambda_par'], dims)
@@ -561,117 +615,6 @@ def main():
                       + 'err = ' + str(round(np.mean(err[np.reshape(mask, dims) > 0]), 2))
                       + ', abs err = ' + str(round(np.mean(np.abs(err[np.reshape(mask, dims) > 0])), 2)))
     fig.colorbar(mpl.cm.ScalarMappable(norm=mpl.colors.Normalize(vmin=clims_err[0], vmax=clims_err[1]), cmap=cmap_err), cax=grid[5].cax, orientation='vertical', label='Some Units')
-
-    '''
-    plt.rcParams.update({'font.size': 24})
-    fig = plt.figure(figsize=(2, 3))
-    grid = AxesGrid(fig, 111, nrows_ncols=(2, 3), axes_pad=[1.5, 1.5], cbar_mode='none', label_mode='all', share_all=False, aspect=True)
-
-    # plot parameter convergence
-    grid[0].plot(range(nsteps), param_conv['C1Stick_1_lambda_par'][vox, :], color='tab:red')
-    grid[0].set_ylabel("Dpar")
-    grid[0].set_xlabel("MCMC iteration")
-    grid[0].axes.set_yticks(np.linspace(1e-9, 3e-9, 5))
-    grid[0].axes.set_ylim([1e-9, 3e-9])
-
-    grid[1].plot(range(nsteps), param_conv['G1Ball_1_lambda_iso'][vox, :], color='tab:green')
-    grid[1].set_ylabel("Diso")
-    grid[1].set_xlabel("MCMC iteration")
-    grid[1].axes.set_yticks(np.linspace(1e-9, 3e-9, 5))
-    grid[1].axes.set_ylim([1e-9, 3e-9])
-
-    grid[2].plot(range(nsteps), param_conv['partial_volume_0'][vox, :], color='tab:blue')
-    grid[2].set_ylabel("fpar")
-    grid[2].set_xlabel("MCMC iteration")
-    grid[2].axes.set_yticks(np.linspace(0, 1, 5))
-    grid[2].axes.set_ylim([0, 1])
-
-    for i in range(3):
-        grid[i].set_xticks(np.linspace(0, nsteps, 6))
-        make_square_axes(grid[i])
-
-    # plot parameter distributions after burn-in period
-    nbins = 50
-    grid[3].hist(param_conv['C1Stick_1_lambda_par'][vox, burn_in:-1], bins=nbins, color='tab:red')
-    grid[3].set_ylabel("freq")
-    grid[3].set_xlabel("Dpar")
-    grid[3].set_xticks(np.linspace(np.min(param_conv['C1Stick_1_lambda_par'][vox, burn_in:-1]),
-                                   np.max(param_conv['C1Stick_1_lambda_par'][vox, burn_in:-1]), 6))
-
-    grid[4].hist(param_conv['G1Ball_1_lambda_iso'][vox, burn_in:-1], bins=nbins, color='tab:green')
-    grid[4].set_ylabel("freq")
-    grid[4].set_xlabel("Diso")
-    grid[4].set_xticks(np.linspace(np.min(param_conv['G1Ball_1_lambda_iso'][vox, burn_in:-1]),
-                                   np.max(param_conv['G1Ball_1_lambda_iso'][vox, burn_in:-1]), 6))
-
-    grid[5].hist(param_conv['partial_volume_0'][vox, burn_in:-1], bins=nbins, color='tab:blue')
-    grid[5].set_ylabel("freq")
-    grid[5].set_xlabel("fpar")
-    grid[5].set_xticks(np.linspace(np.min(param_conv['partial_volume_0'][vox, burn_in:-1]),
-                                   np.max(param_conv['partial_volume_0'][vox, burn_in:-1]), 6))
-
-    for i in range(3, 6):
-        make_square_axes(grid[i])
-        
-    
-    plt.rcParams.update({'font.size': 24})
-    fig = plt.figure(figsize=(1, 2))
-    grid = AxesGrid(fig, 111, nrows_ncols=(1, 2), axes_pad=[1.5, 1.5], cbar_mode='none', label_mode='all')
-
-    # plot acceptance rate
-    grid[0].scatter(range(nsteps), acceptance_rate['C1Stick_1_lambda_par'][vox], color='tab:red')
-    grid[0].scatter(range(nsteps), acceptance_rate['G1Ball_1_lambda_iso'][vox], color='tab:green')
-    grid[0].scatter(range(nsteps), acceptance_rate['partial_volume_0'][vox], color='tab:blue')
-    grid[0].set_ylabel("Acceptance Rate")
-    grid[0].legend(['Dpar', 'Diso', 'fpar'])
-
-    # plot likelihood
-    grid[1].scatter(range(nsteps), likelihood_stored['C1Stick_1_lambda_par'][vox], color='tab:red')
-    grid[1].scatter(range(nsteps), likelihood_stored['G1Ball_1_lambda_iso'][vox], color='tab:green')
-    grid[1].scatter(range(nsteps), likelihood_stored['partial_volume_0'][vox], color='tab:blue')
-    grid[1].set_ylabel("Likelihood")
-    grid[1].legend(['Dpar', 'Diso', 'fpar'])
-
-    for i in range(2):
-        make_square_axes(grid[i])
-    
-    '''
-
-    '''
-    fig, axs = plt.subplots(3, 3)
-    # GT
-    axs[0, 0].imshow(np.reshape(parameter_vector_correct['C1Stick_1_lambda_par'], dims), vmin=.1e-9, vmax=3e-9)
-    axs[0, 0].title.set_text('GT, Dpar')
-    axs[0, 1].imshow(np.reshape(parameter_vector_correct['G1Ball_1_lambda_iso'], dims), vmin=.1e-9, vmax=3e-9)
-    axs[0, 1].title.set_text('GT, Diso')
-    axs[0, 2].imshow(np.reshape(parameter_vector_correct['partial_volume_0'], dims), vmin=0, vmax=1)
-    axs[0, 2].title.set_text('GT, fpar')
-    # LSQ
-    axs[1, 0].imshow(np.reshape(parameter_vector_lsq['C1Stick_1_lambda_par'], dims), vmin=.1e-9, vmax=3e-9)
-    axs[1, 0].title.set_text('GT, Dpar')
-    axs[1, 1].imshow(np.reshape(parameter_vector_lsq['G1Ball_1_lambda_iso'], dims), vmin=.1e-9, vmax=3e-9)
-    axs[1, 1].title.set_text('GT, Diso')
-    axs[1, 2].imshow(np.reshape(parameter_vector_lsq['partial_volume_0'], dims), vmin=0, vmax=1)
-    axs[1, 2].title.set_text('GT, fpar')
-    # Bayes
-    axs[2, 0].imshow(np.reshape(parameter_vector_bayes['C1Stick_1_lambda_par'], dims), vmin=.1e-9, vmax=3e-9)
-    axs[2, 0].title.set_text('GT, Dpar')
-    axs[2, 1].imshow(np.reshape(parameter_vector_bayes['G1Ball_1_lambda_iso'], dims), vmin=.1e-9, vmax=3e-9)
-    axs[2, 1].title.set_text('GT, Diso')
-    axs[2, 2].imshow(np.reshape(parameter_vector_bayes['partial_volume_0'], dims), vmin=0, vmax=1)
-    axs[2, 2].title.set_text('GT, fpar')
-    '''
-
-    '''
-    theta, phi = parameter_vector_correct['C1Stick_1_mu'].T
-    mu_cart = np.zeros((theta.__len__(), 3))
-    sintheta = np.sin(theta)
-    mu_cart[:, 0] = sintheta * np.cos(phi)
-    mu_cart[:, 1] = sintheta * np.sin(phi)
-    mu_cart[:, 2] = np.cos(theta)
-    fig, ax = plt.quiver(np.reshape(mu_cart[:,0], dims[0:2]), np.reshape(mu_cart[:,1], dims[0:2]))
-    '''
-
 
 if __name__ == '__main__':
     main()

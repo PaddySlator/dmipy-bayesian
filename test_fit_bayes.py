@@ -67,6 +67,7 @@ def sign_par():
     ballstick = MultiCompartmentModel(models=[stick, ball])
     return acq_scheme, nmeas, stick, ball, ballstick
 
+
 def load_real_data(path_ROIs, path_diff):
     acq_scheme, nmeas, stick, ball, ballstick = sign_par()
     bvalues = np.loadtxt(join(path_diff, 'test/bvals.txt'))  # given in s/mm^2
@@ -204,15 +205,18 @@ def main():
     # E_sim = copy(E_sim_init)
     # E_fit = copy(E_fit_init)
 
-    path_ROIs = "/media/full/DATA/Software/Bayes_compartment_inference/Real_data/seg/103818_1"
-    path_diff = "/media/full/DATA/Software/Bayes_compartment_inference/Real_data/TestRetestData/103818_1"
-    acq_scheme, data, ballstick, ROIs = load_real_data(path_ROIs, path_diff)
-    mask = ROIs
+    path_ROIs = "/home/epowell/code/python/dmipy-bayesian/data/hcp/seg/103818_1"
+    path_diff = "/home/epowell/code/python/dmipy-bayesian/data/hcp/103818_1"
+    acq_scheme, data, ballstick, mask = load_real_data(path_ROIs, path_diff)
+
+    nx = data.shape[0]
+    ny = data.shape[1]
+    ndw = data.shape[2]
 
     # generalise
     model = deepcopy(ballstick)
-    # data = E_sim
-    #mask = data[..., 0] > 0
+    data = np.reshape(data, (nx*ny, ndw))
+    mask = np.reshape(mask, nx*ny)
 
     nsteps = 5000
     burn_in = 2000
@@ -220,6 +224,9 @@ def main():
     proc_start = time.time()
     acceptance_rate, param_conv, params_all_new, params_all_orig, likelihood_stored, w_stored = fit(model, acq_scheme, data, mask, nsteps, burn_in)
     compute_time(proc_start, time.time())
+
+    data = np.reshape(data, (nx, ny, ndw))
+    mask = np.reshape(mask, (nx, ny))
 
     # remove dependent volume fraction from model
     dependent_fraction = model.partial_volume_names[-1]

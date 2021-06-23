@@ -80,15 +80,19 @@ def fit(model, acq_scheme, data, mask=None, nsteps=1000, burn_in=500):
     # TODO: remove perturbations from final version
     # perturb params for testing
     idx_roi = [xx for xx, x in enumerate(mask == roi_vals[0]) if x]
-    vox = idx_roi[0]
-    init_param['C1Stick_1_lambda_par'][vox] = (model.parameter_ranges['C1Stick_1_lambda_par'][1]
+    vox1 = idx_roi[0]
+    vox2 = idx_roi[1]
+    vox3 = idx_roi[2]
+    vox4 = idx_roi[3]
+    init_param['C1Stick_1_lambda_par'][vox1] = (model.parameter_ranges['C1Stick_1_lambda_par'][1]
                                                - model.parameter_ranges['C1Stick_1_lambda_par'][1] / 50)\
                                               * model.parameter_scales['C1Stick_1_lambda_par']             # Dpar
-    init_param['G1Ball_1_lambda_iso'][vox] = (model.parameter_ranges['G1Ball_1_lambda_iso'][1]
+    init_param['G1Ball_1_lambda_iso'][vox2] = (model.parameter_ranges['G1Ball_1_lambda_iso'][1]
                                               - model.parameter_ranges['G1Ball_1_lambda_iso'][1] / 50)\
                                              * model.parameter_scales['G1Ball_1_lambda_iso']               # Diso
-    init_param['partial_volume_0'][vox] = .5                  # fpar
-    fig, ax = plt.subplots()
+    init_param['partial_volume_0'][vox3] = init_param['partial_volume_0'][vox3] * 1.3                      # fpar
+    init_param['C1Stick_1_mu'][vox4, 0] = init_param['C1Stick_1_mu'][vox4, 0] * 1.3                        # mu
+    # fig, ax = plt.subplots()
 
     # create dict of LSQ fit values, original values
     params_all_orig = deepcopy(init_param)
@@ -104,7 +108,7 @@ def fit(model, acq_scheme, data, mask=None, nsteps=1000, burn_in=500):
     for param in parameters_to_fit:  # set weight as x * range
         if model.parameter_cardinality[param] > 1:
             for card in range(model.parameter_cardinality[param]):
-                w[param][card] = 0.005 * np.abs(np.subtract(w[param][card, 1], w[param][card, 0]))
+                w[param][card] = 0.01 * np.abs(np.subtract(w[param][card, 1], w[param][card, 0]))
             w[param] = w[param][range(model.parameter_cardinality[param]), 0]
             w[param] = np.tile(w[param], (nvox, 1))  # tile to create weight for each voxel
         elif model.parameter_cardinality[param] == 1:
@@ -289,7 +293,7 @@ def fit(model, acq_scheme, data, mask=None, nsteps=1000, burn_in=500):
                         w_stored[param][idx_roi, np.int((j+1)/100)] = w[param][idx_roi]
                         accepted_per_100[param] = np.zeros(nvox)
                     # plot weights
-                    # if (param == 'partial_volume_0') & (roi == 0):
+                    '''
                     if roi == 0:
                         if model.parameter_cardinality[param] > 1:
                             col = ['tab:purple', 'tab:pink']
@@ -310,10 +314,14 @@ def fit(model, acq_scheme, data, mask=None, nsteps=1000, burn_in=500):
                                 ax.plot(j, tmp*1e9, color='tab:green', marker='^', markersize=15)
                             elif param == 'partial_volume_0':
                                 ax.plot(j, tmp, color='tab:blue', marker='o', markersize=15)
+                    '''
 
     # params_all = tform_params(params_all_new, model.parameter_names, model, 'r')
     params_all = tform_params(params_all_new, model.parameter_names, model, 'r')
     for param in parameters_to_fit:
         params_all[param] = np.mean(param_conv[param][:, burn_in:-1], axis=1)
+
+    parameter_vector_bayes = params_all
+    parameter_vector_init = params_all_orig
 
     return acceptance_rate, param_conv, params_all, params_all_orig, likelihood_stored, w_stored
