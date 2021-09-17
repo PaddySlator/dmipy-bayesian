@@ -218,8 +218,8 @@ def main():
     data = np.reshape(data, (nx*ny, ndw))
     mask = np.reshape(mask, nx*ny)
 
-    nsteps = 5000
-    burn_in = 2000
+    nsteps = 2
+    burn_in = 1
 
     proc_start = time.time()
     acceptance_rate, param_conv, params_all_new, params_all_orig, likelihood_stored, w_stored = fit(model, acq_scheme, data, mask, nsteps, burn_in)
