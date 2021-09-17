@@ -2,14 +2,6 @@ import numpy as np
 from copy import copy, deepcopy
 import scipy
 import matplotlib.pyplot as plt
-from multiprocessing import Pool
-import tqdm
-import asyncio
-
-
-def run_ROI_opt(roi):
-    return ROI_opt(roi)
-
 
 
 # NOTE: will need fix if other models have parameters with cardinality > 1 (other than orientation)
@@ -167,16 +159,13 @@ def fit(model, acq_scheme, data, mask=None, nsteps=1000, burn_in=500):
             w_stored[param][:, 0] = w[param]
 
     #------------------------------------------- MCMC ------------------------------------------------------------------
-    async def ROI_opt(roi):
-        # loop over ROIs
-        print("ROI {}".format(roi))
-        print("ROI vals {}".format(roi_vals))
+    # loop over ROIs
+    for roi in range(nroi):
         idx_roi = [xx for xx, x in enumerate(mask == roi_vals[roi]) if x]  # indices into mask of voxels in ROI
         nvox_roi = idx_roi.__len__()  # no. voxels in ROI
         # initialise sigma for this ROI
         sigma = np.cov(np.transpose(model_reduced.parameters_to_parameter_vector(**params_all_tform)[idx_roi]))
-        
-        # print("ROI " + str(roi+1) + "/" + str(nroi) + "; " + str(nvox_roi) + " voxels")
+        print("ROI " + str(roi+1) + "/" + str(nroi) + "; " + str(nvox_roi) + " voxels")
 
         # NB i (voxel loop) and j (MC loop) in keeping with Orton paper
         for j in range(0, nsteps):
@@ -189,7 +178,7 @@ def fit(model, acq_scheme, data, mask=None, nsteps=1000, burn_in=500):
             mu = np.random.multivariate_normal(m, V)
             # Gibbs 2. sample sigma from inverse Wishart distribution (using newly updated mu)
             phi = np.sum([np.outer(parameter_vector[i, :] - mu, parameter_vector[i, :] - mu)
-                        for i in range(0, nvox_roi)], axis=0)
+                          for i in range(0, nvox_roi)], axis=0)
             sigma = scipy.stats.invwishart(scale=phi, df=nvox_roi - nparams - 1).rvs()
 
             # save Gibbs parameters for this step (careful of parameter ordering)
@@ -207,19 +196,19 @@ def fit(model, acq_scheme, data, mask=None, nsteps=1000, burn_in=500):
                                                                             w[p][idx_roi, card])
                 elif model.parameter_cardinality[p] == 1:
                     params_all_new[p][idx_roi] = np.random.normal(params_all_tform[p][idx_roi],
-                                                                np.matrix.flatten(w[p][idx_roi]))
+                                                                  np.matrix.flatten(w[p][idx_roi]))
 
                 # if a volume fraction was sampled, re-compute dependent fraction
                 # create boolean prior to avoid sum(volume fractions) > 1
                 if 'partial_volume_' in p:
                     f_indep = [params_all_new[name][idx_roi] for name in model.partial_volume_names
-                            if name != dependent_fraction]
+                               if name != dependent_fraction]
                     f_indep = np.exp(f_indep) / (1 + np.exp(f_indep))  # tform indept fractions (log -> orig)
                     for c in range(ncomp - 1):  # check transform
                         f_indep[c, :] = [1 if np.isnan(x) else x for x in f_indep[c, :]]
                     prior_new = 1 * (np.sum(f_indep, axis=0) < 1)  # boolean prior to control total vol frac
                     f_dept = np.array([np.max([0, 1 - np.sum(f_indep[:, f], axis=0)])
-                                    for f in range(nvox_roi)])  # compute dept fraction
+                                       for f in range(nvox_roi)])  # compute dept fraction
                     f_dept = np.log(f_dept) - np.log(1 - f_dept)  # tform dept fraction (orig -> log)
                     params_all_new[dependent_fraction][idx_roi] = f_dept
                 else:
@@ -249,7 +238,7 @@ def fit(model, acq_scheme, data, mask=None, nsteps=1000, burn_in=500):
 
                 # TODO: investigate big discrepancy between r and alpha
                 alpha = [np.min([0, (likelihood_new[i] + prior_new[i]) - (likelihood[i] + prior[i])]) for i in
-                        range(nvox_roi)]
+                         range(nvox_roi)]
                 r = np.log(np.random.uniform(0, 1, nvox_roi))
 
                 # accept new parameter value if criteria met (col 1 -> roi voxel indices, col 2 -> fov voxel indices)
@@ -326,36 +315,13 @@ def fit(model, acq_scheme, data, mask=None, nsteps=1000, burn_in=500):
                             elif param == 'partial_volume_0':
                                 ax.plot(j, tmp, color='tab:blue', marker='o', markersize=15)
                     '''
-        return [acceptance_rate, params_all_new, param_conv, likelihood_stored, w_stored]
 
-        # params_all = tform_params(params_all_new, model.parameter_names, model, 'r')
-        
-    # with Pool(4) as p:
-    #     result_list = list(tqdm.tqdm(p.imap(ROI_opt,
-    #                                         range(nroi)),
-    #                                         total=nroi))
-
-    loop = asyncio.get_event_loop()
-    tasks = [asyncio.ensure_future(ROI_opt(np.arange(0,len(roi_vals))))]
-    result_list = tuple(loop.run_until_complete(asyncio.gather(*tasks)))
-    # with Pool(4) as p:
-    #     result_list = list(p.imap(run_ROI_opt, roi_vals))
-    # print(result_list)
-
-    # result_list = list(pool.map(ROI_opt, range(nroi)))
-
-    acceptance_rate = result_list[0]
-    params_all_new = result_list[1]
-    param_conv = result_list[2]
-    likelihood_stored = result_list[3]
-    w_stored = result_list[4]
-
+    # params_all = tform_params(params_all_new, model.parameter_names, model, 'r')
     params_all = tform_params(params_all_new, model.parameter_names, model, 'r')
     for param in parameters_to_fit:
-        if model.parameter_cardinality[param] > 1:
-            for card in range(model.parameter_cardinality[param]):
-                params_all[param][:, card] = np.mean(param_conv[param][:, card, burn_in:-1], axis=1)
-        elif model.parameter_cardinality[param] == 1:
-            params_all[param] = np.mean(param_conv[param][:, burn_in:-1], axis=1)
+        params_all[param] = np.mean(param_conv[param][:, burn_in:-1], axis=1)
+
+    parameter_vector_bayes = params_all
+    parameter_vector_init = params_all_orig
 
     return acceptance_rate, param_conv, params_all, params_all_orig, likelihood_stored, w_stored
