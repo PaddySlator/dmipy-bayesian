@@ -208,6 +208,11 @@ def main():
     path_ROIs = "/home/epowell/code/python/dmipy-bayesian/data/hcp/seg/103818_1"
     path_diff = "/home/epowell/code/python/dmipy-bayesian/data/hcp/103818_1"
     acq_scheme, data, ballstick, mask = load_real_data(path_ROIs, path_diff)
+    # mask[mask > 0] = 1
+
+    # LSQ fitting
+    lsq_fit = ballstick.fit(acq_scheme, data, mask=mask)
+    parameter_vector_lsq = lsq_fit.fitted_parameters
 
     nx = data.shape[0]
     ny = data.shape[1]
@@ -218,11 +223,13 @@ def main():
     data = np.reshape(data, (nx*ny, ndw))
     mask = np.reshape(mask, nx*ny)
 
-    nsteps = 5000
-    burn_in = 2000
 
+    nsteps = 2000
+    burn_in = 1000
+
+    # hierarchical Bayesian fitting
     proc_start = time.time()
-    acceptance_rate, param_conv, params_all_new, params_all_orig, likelihood_stored, w_stored = fit(model, acq_scheme, data, mask, nsteps, burn_in)
+    acceptance_rate, param_conv, parameter_vector_bayes, parameter_vector_init, likelihood_stored, w_stored = fit_bayes.fit(model, acq_scheme, data, mask, nsteps, burn_in)
     compute_time(proc_start, time.time())
 
     data = np.reshape(data, (nx, ny, ndw))
