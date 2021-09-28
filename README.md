@@ -1,5 +1,5 @@
 # dmipy-bayesian 
-We have extended the dmipy software package to fit enable Bayesian fitting.
+We have extended the dmipy software package to enable Bayesian fitting.
 
 If you find any bugs please let us know!
 
