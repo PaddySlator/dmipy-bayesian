@@ -1,3 +1,32 @@
+# dmipy-bayesian 
+We have extended the dmipy software package to fit enable Bayesian fitting.
+
+If you find any bugs please let us know!
+
+The example at "bayesian-fitting-HCP-example.ipynb" should be enough to get started.
+
+Don't hesistate to get in touch with any questions, suggestions, etc!
+
+Authors:
+Lizzie Powell (e-powell@ucl.ac.uk)
+Matteo Battocchio (matteo.battocchio@univr.it)
+Chris Parker (christopher.parker@ucl.ac.uk)
+Paddy Slator (p.slator@ucl.ac.uk)
+
+Centre for Medical Image Computing, UCL
+
+If you use this code, please consider citing the following papers
+
+Bayesian hierachical model fitting
+- **Original implemenation (IVIM model)**: Matthew R. Orton, David J. Collins, Dow-Mu Koh and Martin O. Leach, "Improved intravoxel incoherent motion analysis of diffusion weighted imaging by data driven Bayesian modeling", *Magnetic Resonance in Medicine* 71:411–420, 2014. https://doi.org/10.1002/mrm.24649
+- **Implementation for general microstructure model**: Elizabeth Powell, Matteo Battocchio, Christopher S. Parker, and Paddy J. Slator, "Generalised Hierarchical Bayesian Microstructure Modelling for Diffusion MRI", *International Conference on Medical Image Computing and Computer-Assisted Intervention (MICCAI) Computational Diffusion MRI (CDMRI) Workshop 2021* 
+
+Underlying dmipy code
+- **Primary Reference**: Rutger Fick, Demian Wassermann and Rachid Deriche, "The Dmipy Toolbox: Diffusion MRI Multi-Compartment Modeling and Microstructure Recovery Made Easy", *Frontiers in Neuroinformatics* 13 (2019): 64.
+- **Github Repository**: Rutger Fick, Rachid Deriche, & Demian Wassermann. (2019, October 15). *The Dmipy Toolbox: Diffusion MRI Multi-Compartment Modeling and Microstructure Recovery Made Easy (Version 1.0)*. Zenodo. http://doi.org/10.5281/zenodo.3490325
+
+Everything below this line is from the the original dmipy README file...
+--------------------------------------------------------------------------------------
 [![Build Status](https://travis-ci.org/AthenaEPI/dmipy.svg?branch=master)](https://travis-ci.org/AthenaEPI/dmipy)
 [![codecov](https://codecov.io/gh/AthenaEPI/dmipy/branch/master/graph/badge.svg)](https://codecov.io/gh/AthenaEPI/dmipy)
 [![Coverage Status](https://coveralls.io/repos/github/AthenaEPI/dmipy/badge.svg)](https://coveralls.io/github/AthenaEPI/dmipy)
