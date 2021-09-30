@@ -1,11 +1,11 @@
 # dmipy-bayesian 
-We have extended the dmipy software package to enable Bayesian fitting.
+Extension of the dmipy software package to enable Bayesian fitting.
 
-This code is a work in progress! Please check back regularly for updates, and if you find any bugs please let us know!
+The main function is fit_bayes.py - which implements the Bayesian hierarchical model fit. Note that the input/output format is not *exactly* the same as for the dmipy fitting functions - that's something that we'll be working on in future. The example at "bayesian-fitting-HCP-example.ipynb" should be enough to get started.
 
-The example at "bayesian-fitting-HCP-example.ipynb" should be enough to get started.
+This code is a work in progress! Please check back regularly for updates, and if you find any bugs please let us know! 
 
-Don't hesistate to get in touch with any questions, suggestions, etc!
+Don't hesistate to get in touch with any questions, suggestions, etc...
 
 Authors:
 Lizzie Powell (e-powell@ucl.ac.uk)
