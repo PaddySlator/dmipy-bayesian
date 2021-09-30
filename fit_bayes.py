@@ -79,19 +79,19 @@ def fit(model, acq_scheme, data, mask=None, nsteps=1000, burn_in=500):
 
     # TODO: remove perturbations from final version
     # perturb params for testing
-    idx_roi = [xx for xx, x in enumerate(mask == roi_vals[0]) if x]
-    vox1 = idx_roi[0]
-    vox2 = idx_roi[1]
-    vox3 = idx_roi[2]
-    vox4 = idx_roi[3]
-    init_param['C1Stick_1_lambda_par'][vox1] = (model.parameter_ranges['C1Stick_1_lambda_par'][1]
-                                               - model.parameter_ranges['C1Stick_1_lambda_par'][1] / 50)\
-                                              * model.parameter_scales['C1Stick_1_lambda_par']             # Dpar
-    init_param['G1Ball_1_lambda_iso'][vox2] = (model.parameter_ranges['G1Ball_1_lambda_iso'][1]
-                                              - model.parameter_ranges['G1Ball_1_lambda_iso'][1] / 50)\
-                                             * model.parameter_scales['G1Ball_1_lambda_iso']               # Diso
-    init_param['partial_volume_0'][vox3] = init_param['partial_volume_0'][vox3] * 1.3                      # fpar
-    init_param['C1Stick_1_mu'][vox4, 0] = init_param['C1Stick_1_mu'][vox4, 0] * 1.3                        # mu
+    # idx_roi = [xx for xx, x in enumerate(mask == roi_vals[0]) if x]
+    # vox1 = idx_roi[0]
+    # vox2 = idx_roi[1]
+    # vox3 = idx_roi[2]
+    # vox4 = idx_roi[3]
+    # init_param['C1Stick_1_lambda_par'][vox1] = (model.parameter_ranges['C1Stick_1_lambda_par'][1]
+    #                                            - model.parameter_ranges['C1Stick_1_lambda_par'][1] / 50)\
+    #                                           * model.parameter_scales['C1Stick_1_lambda_par']             # Dpar
+    # init_param['G1Ball_1_lambda_iso'][vox2] = (model.parameter_ranges['G1Ball_1_lambda_iso'][1]
+    #                                           - model.parameter_ranges['G1Ball_1_lambda_iso'][1] / 50)\
+    #                                          * model.parameter_scales['G1Ball_1_lambda_iso']               # Diso
+    # init_param['partial_volume_0'][vox3] = init_param['partial_volume_0'][vox3] * 1.3                      # fpar
+    # init_param['C1Stick_1_mu'][vox4, 0] = init_param['C1Stick_1_mu'][vox4, 0] * 1.3                        # mu
     # fig, ax = plt.subplots()
 
     # create dict of LSQ fit values, original values
@@ -169,7 +169,7 @@ def fit(model, acq_scheme, data, mask=None, nsteps=1000, burn_in=500):
 
         # NB i (voxel loop) and j (MC loop) in keeping with Orton paper
         for j in range(0, nsteps):
-            print(j)
+            #print(j)
             # Gibbs moves to update priors.
             # Gibbs 1. sample mu from multivariate normal dist defined by current param estimates.
             parameter_vector = model_reduced.parameters_to_parameter_vector(**params_all_tform)[idx_roi, :]
