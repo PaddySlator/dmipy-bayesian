@@ -1,7 +1,7 @@
 # dmipy-bayesian 
 We have extended the dmipy software package to enable Bayesian fitting.
 
-If you find any bugs please let us know!
+This code is a work in progress! Please check back regularly for updates, and if you find any bugs please let us know!
 
 The example at "bayesian-fitting-HCP-example.ipynb" should be enough to get started.
 
