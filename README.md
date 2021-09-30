@@ -1,5 +1,5 @@
 # dmipy-bayesian 
-Extension of the dmipy software package to enable Bayesian fitting.
+Extension of the dmipy software package to enable Bayesian hierarchical model fitting of microstructural models to diffusion MRI data. The Bayesian hierarchical model assumes a Gaussian prior over a user-defined region (or regions) of interest. This Gaussian prior is estimated from the data, along with the posterior distributions for the microstructure model parameters in each voxel. See (Orton MRM 2014) and (Powell CDMRI 2021) for more details.
 
 The main function is fit_bayes.py - which implements the Bayesian hierarchical model fit. Note that the input/output format is not *exactly* the same as for the dmipy fitting functions - that's something that we'll be working on in future. The example at "bayesian-fitting-HCP-example.ipynb" should be enough to get started.
 
