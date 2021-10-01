@@ -5,7 +5,7 @@ Note that the following license (LICENSE-BAYESIAN) applies only to the additiona
 - simulate_shepp_logan.py 
 - test_fit_bayes.py
 
-The rest of the code is directly copied from the Dmipy software package (https://github.com/AthenaEPI/dmipy) which is covered by the MIT license (see LICENSE).
+The rest of the code is directly copied from the Dmipy software package (https://github.com/AthenaEPI/dmipy) which is covered by the MIT license (see LICENSE file).
 
 
                       GNU GENERAL PUBLIC LICENSE
