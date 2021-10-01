@@ -8,7 +8,7 @@ This code is a work in progress! Please check back regularly for updates, and if
 Don't hesistate to get in touch with any questions, suggestions, etc...
 
 Authors:
-Lizzie Powell (e-powell@ucl.ac.uk)
+Elizabeth Powell (e-powell@ucl.ac.uk)
 Matteo Battocchio (matteo.battocchio@univr.it)
 Chris Parker (christopher.parker@ucl.ac.uk)
 Paddy Slator (p.slator@ucl.ac.uk)
