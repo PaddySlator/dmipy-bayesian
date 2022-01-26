@@ -7,6 +7,8 @@ from __future__ import division
 import numpy as np
 from scipy.special import erf
 
+import scipy.stats
+
 from ..utils import utils
 from ..core.modeling_framework import ModelProperties
 from ..core.signal_model_properties import (
@@ -20,6 +22,7 @@ A_SCALING = 1e-12
 
 __all__ = [
     'G1Ball',
+    'G1BallNormalDist',
     'G2Zeppelin',
     'G3TemporalZeppelin'
 ]
@@ -76,6 +79,105 @@ class G1Ball(ModelProperties, IsotropicSignalModelProperties):
         lambda_iso = kwargs.get('lambda_iso', self.lambda_iso)
         E_ball = np.exp(-bvals * lambda_iso)
         return E_ball
+
+
+class G1BallNormalDist(ModelProperties, IsotropicSignalModelProperties):
+    r""" Like the Ball model [1]_ - an isotropic Tensor with one diffusivity,
+    but with a normal distribution of diffusivities (rather than a single value)
+    parameterised by mean mu and standard deviation sigma. I.e. the diffusion
+    equivalent of [2].
+
+
+
+    Parameters
+    ----------
+    lambda_iso_mean : float,
+        mean of the isotropic diffusivity in m^2/s.
+
+    lambda_iso_std : float,
+        standard deviation of the isotropic diffusivity in m^2/s.
+
+    References
+    ----------
+    .. [1] Behrens et al.
+           "Characterization and propagation of uncertainty in
+            diffusion-weighted MR imaging"
+           Magnetic Resonance in Medicine (2003)
+    .. [2] Devine et al.
+           "Simplified Luminal Water Imaging for the
+           Detection of Prostate Cancer From Multiecho
+           T2 MR Images,
+           Journal of Magnetic Resonance Imaging (2018)
+    """
+
+    _required_acquisition_parameters = ['bvalues']
+
+    _parameter_ranges = {
+        'lambda_iso_mean': (.1, 3),
+        'lambda_iso_std': (.01, 0.5)
+    }
+    _parameter_scales = {
+        'lambda_iso_mean': DIFFUSIVITY_SCALING,
+        'lambda_iso_std': DIFFUSIVITY_SCALING
+    }
+    _parameter_types = {
+        'lambda_iso_mean': 'normal',
+        'lambda_iso_std': 'normal',
+    }
+    _model_type = 'CompartmentModel'
+
+    def __init__(self, lambda_iso_mean=None, lambda_iso_std=None):
+        self.lambda_iso_mean = lambda_iso_mean
+        self.lambda_iso_std = lambda_iso_std
+
+    def __call__(self, acquisition_scheme, **kwargs):
+        r'''
+        Estimates the signal attenuation.
+
+        Parameters
+        ----------
+        acquisition_scheme : DmipyAcquisitionScheme instance,
+            An acquisition scheme that has been instantiated using dMipy.
+        kwargs: keyword arguments to the model parameter values,
+            Is internally given as **parameter_dictionary.
+
+        Returns
+        -------
+        attenuation : float or array, shape(N),
+            signal attenuation
+        '''
+        bvals = acquisition_scheme.bvalues
+        lambda_iso_mean = kwargs.get('lambda_iso_mean', self.lambda_iso_mean)
+        lambda_iso_std = kwargs.get('lambda_iso_std', self.lambda_iso_std)
+
+        r'''
+        define the grid (on which to estimate the distribution) based on
+        the minimum and maximum lambda_iso values
+        '''
+        lambda_iso_grid = np.linspace(.1 * DIFFUSIVITY_SCALING, 3 * DIFFUSIVITY_SCALING, 1000)
+
+        r'''
+        make the signal dictionary (slow, and definitely don't need to do this
+        in every voxel! Should try and replace with a global variable)
+        '''
+        A = np.zeros((len(bvals), len(lambda_iso_grid)))
+        for i in range(0,len(lambda_iso_grid)):
+            #parameter_vector = ball_model.parameters_to_parameter_vector(G1Ball_1_lambda_iso = R2grid[i])
+            #A[:,i] = ball_model.simulate_signal(acq_scheme, parameter_vector)
+            A[:,i] = np.exp(-bvals * lambda_iso_grid[i])
+
+        r'''
+        make the distribution and normalise it
+        '''
+        normaldist = scipy.stats.norm.pdf(lambda_iso_grid,lambda_iso_mean,lambda_iso_std)
+        normaldist = normaldist/np.sum(normaldist)
+
+        r'''calculate the signal'''
+        E_ball = np.matmul(A,normaldist)
+
+        return E_ball
+
+
 
 
 class G2Zeppelin(ModelProperties, AnisotropicSignalModelProperties):
