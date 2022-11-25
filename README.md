@@ -1,3 +1,32 @@
+# dmipy-bayesian 
+Extension of the dmipy software package to enable Bayesian hierarchical model fitting of microstructural models to diffusion MRI data. The Bayesian hierarchical model assumes a Gaussian prior over a user-defined region (or regions) of interest. This Gaussian prior is estimated from the data, along with the posterior distributions for the microstructure model parameters in each voxel. See (Orton MRM 2014) and (Powell CDMRI 2021) for more details.
+
+The main function is fit_bayes.py - which implements the Bayesian hierarchical model fit. Note that the input/output format is not *exactly* the same as for the dmipy fitting functions - that's something that we'll be working on in future. The example at "bayesian-fitting-HCP-example.ipynb" should be enough to get started.
+
+This code is a work in progress! Please check back regularly for updates, and if you find any bugs please let us know! 
+
+Don't hesistate to get in touch with any questions, suggestions, etc...
+
+Authors:
+Elizabeth Powell (e-powell@ucl.ac.uk)
+Matteo Battocchio (matteo.battocchio@univr.it)
+Chris Parker (christopher.parker@ucl.ac.uk)
+Paddy Slator (p.slator@ucl.ac.uk)
+
+Centre for Medical Image Computing, UCL
+
+If you use this code, please consider citing the following papers
+
+Bayesian hierachical model fitting
+- **Original implemenation (IVIM model)**: Matthew R. Orton, David J. Collins, Dow-Mu Koh and Martin O. Leach, "Improved intravoxel incoherent motion analysis of diffusion weighted imaging by data driven Bayesian modeling", *Magnetic Resonance in Medicine* 71:411–420, 2014. https://doi.org/10.1002/mrm.24649
+- **Implementation for general microstructure model**: Elizabeth Powell, Matteo Battocchio, Christopher S. Parker, and Paddy J. Slator, "Generalised Hierarchical Bayesian Microstructure Modelling for Diffusion MRI", *In: Cetin-Karayumak S. et al. (eds) Computational Diffusion MRI. CDMRI 2021. Lecture Notes in Computer Science, vol 13006. Springer, Cham. https://doi.org/10.1007/978-3-030-87615-9_4*
+
+Underlying dmipy code
+- **Primary Reference**: Rutger Fick, Demian Wassermann and Rachid Deriche, "The Dmipy Toolbox: Diffusion MRI Multi-Compartment Modeling and Microstructure Recovery Made Easy", *Frontiers in Neuroinformatics* 13 (2019): 64.
+- **Github Repository**: Rutger Fick, Rachid Deriche, & Demian Wassermann. (2019, October 15). *The Dmipy Toolbox: Diffusion MRI Multi-Compartment Modeling and Microstructure Recovery Made Easy (Version 1.0)*. Zenodo. http://doi.org/10.5281/zenodo.3490325
+
+Everything below this line is from the the original dmipy README file...
+--------------------------------------------------------------------------------------
 [![Build Status](https://travis-ci.org/AthenaEPI/dmipy.svg?branch=master)](https://travis-ci.org/AthenaEPI/dmipy)
 [![codecov](https://codecov.io/gh/AthenaEPI/dmipy/branch/master/graph/badge.svg)](https://codecov.io/gh/AthenaEPI/dmipy)
 [![Coverage Status](https://coveralls.io/repos/github/AthenaEPI/dmipy/badge.svg)](https://coveralls.io/github/AthenaEPI/dmipy)
