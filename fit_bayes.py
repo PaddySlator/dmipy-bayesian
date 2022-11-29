@@ -1,6 +1,6 @@
 #Extension of the dmipy software package for Bayesian hierarchical model fitting
 
-#Copyright (C) 2021 Elizabeth Powell, Matteo Battocchio, Chris Parker, Paddy Slator 
+#Copyright (C) 2021 Elizabeth Powell, Matteo Battocchio, Chris Parker, Paddy Slator
 
 #This program is free software: you can redistribute it and/or modify
 #it under the terms of the GNU General Public License as published by
@@ -32,6 +32,19 @@ def tform_params(param_dict, parameter_names, model, direction):
                 lb = (model.parameter_ranges[param][0] - 1e-5) * model.parameter_scales[param]  # lower bound
                 ub = (model.parameter_ranges[param][1] + 1e-5) * model.parameter_scales[param]  # upper bound
                 param_dict[param] = np.log(param_dict[param] - lb) - np.log(ub - param_dict[param])
+            # else:
+            #     for card in range(model.parameter_cardinality[param]):
+            #         lb = (model.parameter_ranges[param][card][0]) * model.parameter_scales[param][card]  # lower bound
+            #         ub = (model.parameter_ranges[param][card][1]) * model.parameter_scales[param][card]  # upper bound
+            #         r = ub - lb
+            #         condition = 0
+            #         while condition == 0:
+            #             idx_above = [xx for xx, x in enumerate(param_dict[param][:, card] > ub) if x]
+            #             idx_below = [xx for xx, x in enumerate(param_dict[param][:, card] < lb) if x]
+            #             param_dict[param][idx_above, card] = param_dict[param][idx_above, card] - r
+            #             param_dict[param][idx_below, card] = param_dict[param][idx_below, card] + r
+            #             if (idx_above == []) & (idx_below == []):
+            #                 condition = 1
 
     elif direction == 'r':
         for param in parameter_names:
@@ -42,7 +55,19 @@ def tform_params(param_dict, parameter_names, model, direction):
                 ub = (model.parameter_ranges[param][1] + 1e-5) * model.parameter_scales[param]  # upper bound
                 param_dict[param] = (lb + ub * np.exp(param_dict[param])) / (1 + np.exp(param_dict[param]))
                 param_dict[param] = [ub if np.isnan(x) else x for x in param_dict[param]]
-
+            # else:
+            #     for card in range(model.parameter_cardinality[param]):
+            #         lb = (model.parameter_ranges[param][card][0]) * model.parameter_scales[param][card]  # lower bound
+            #         ub = (model.parameter_ranges[param][card][1]) * model.parameter_scales[param][card]  # upper bound
+            #         r = ub - lb
+            #         condition = 0
+            #         while condition == 0:
+            #             idx_above = [xx for xx, x in enumerate(param_dict[param][:, card] > ub) if x]
+            #             idx_below = [xx for xx, x in enumerate(param_dict[param][:, card] < lb) if x]
+            #             param_dict[param][idx_above, card] = param_dict[param][idx_above, card] - r
+            #             param_dict[param][idx_below, card] = param_dict[param][idx_below, card] + r
+            #             if (idx_above == []) & (idx_below == []):
+            #                 condition = 1
     else:
         print('Incorrect input! Nothing is happening...')
 
@@ -50,7 +75,7 @@ def tform_params(param_dict, parameter_names, model, direction):
 
 
 # FIXME: create as class like modelling_framework.py?
-def fit(model, acq_scheme, data, mask=None, nsteps=1000, burn_in=500):
+def fit(model, acq_scheme, data, parameter_vector_lsq, mask=None, nsteps=1000, burn_in=500):
     # FIXME: data checks?
 
     # set mask default
@@ -74,7 +99,7 @@ def fit(model, acq_scheme, data, mask=None, nsteps=1000, burn_in=500):
     nroi = roi_vals.__len__()  # no. ROIs
 
     # do initial LQS fit for parameter initialisation
-    lsq_fit = model.fit(acq_scheme, data, mask=mask)
+    # lsq_fit = model.fit(acq_scheme, data, mask=mask)
 
     # get number of compartments; only fit no. compartments - 1
     parameters_to_fit = [name for name in model.parameter_names if name != model.partial_volume_names[-1]]
@@ -91,24 +116,32 @@ def fit(model, acq_scheme, data, mask=None, nsteps=1000, burn_in=500):
     # create dictionary of model parameter names and LSQ fit values
     init_param = dict.fromkeys(model.parameter_names)
     for param in model.parameter_names:
+        print(param)
         init_param[param] = np.squeeze(np.nan * np.ones([nvox, model.parameter_cardinality[param]]))
-        init_param[param][mask > 0, ] = lsq_fit.fitted_parameters[param][mask > 0]
+        init_param[param][mask > 0, ] = parameter_vector_lsq[param][mask > 0]
 
     # TODO: remove perturbations from final version
     # perturb params for testing
-    # idx_roi = [xx for xx, x in enumerate(mask == roi_vals[0]) if x]
-    # vox1 = idx_roi[0]
-    # vox2 = idx_roi[1]
-    # vox3 = idx_roi[2]
-    # vox4 = idx_roi[3]
-    # init_param['C1Stick_1_lambda_par'][vox1] = (model.parameter_ranges['C1Stick_1_lambda_par'][1]
+    idx_roi = [xx for xx, x in enumerate(mask == roi_vals[0]) if x]
+    # vox0 = idx_roi[0]
+    # vox1 = idx_roi[1]
+    # vox2 = idx_roi[2]
+    # vox3 = idx_roi[3]
+    # init_param['C1Stick_1_lambda_par'][vox0] = (model.parameter_ranges['C1Stick_1_lambda_par'][1]
     #                                            - model.parameter_ranges['C1Stick_1_lambda_par'][1] / 50)\
-    #                                           * model.parameter_scales['C1Stick_1_lambda_par']             # Dpar
-    # init_param['G1Ball_1_lambda_iso'][vox2] = (model.parameter_ranges['G1Ball_1_lambda_iso'][1]
+    #                                           * model.parameter_scales['C1Stick_1_lambda_par']              # Dpar, perturb up
+    # init_param['C1Stick_1_lambda_par'][vox1] = (model.parameter_ranges['C1Stick_1_lambda_par'][0]
+    #                                             + model.parameter_ranges['C1Stick_1_lambda_par'][0] / 50) \
+    #                                            * model.parameter_scales['C1Stick_1_lambda_par']             # Dpar, perturb down
+    # print(init_param['C1Stick_1_lambda_par'][vox0])
+    # print(init_param['C1Stick_1_lambda_par'][vox1])
+    # print(init_param['C1Stick_1_lambda_par'][vox2])
+
+    # init_param['G1Ball_1_lambda_iso'][vox1] = (model.parameter_ranges['G1Ball_1_lambda_iso'][1]
     #                                           - model.parameter_ranges['G1Ball_1_lambda_iso'][1] / 50)\
     #                                          * model.parameter_scales['G1Ball_1_lambda_iso']               # Diso
-    # init_param['partial_volume_0'][vox3] = init_param['partial_volume_0'][vox3] * 1.3                      # fpar
-    # init_param['C1Stick_1_mu'][vox4, 0] = init_param['C1Stick_1_mu'][vox4, 0] * 1.3                        # mu
+    # init_param['partial_volume_0'][vox2] = init_param['partial_volume_0'][vox2] * 1.3                      # fpar
+    # init_param['C1Stick_1_mu'][vox3, 0] = init_param['C1Stick_1_mu'][vox3, 0] * 1.3                        # mu
     # fig, ax = plt.subplots()
 
     # create dict of LSQ fit values, original values
@@ -125,11 +158,13 @@ def fit(model, acq_scheme, data, mask=None, nsteps=1000, burn_in=500):
     for param in parameters_to_fit:  # set weight as x * range
         if model.parameter_cardinality[param] > 1:
             for card in range(model.parameter_cardinality[param]):
-                w[param][card] = 0.01 * np.abs(np.subtract(w[param][card, 1], w[param][card, 0]))
+                # w[param][card] = 0.01 * np.abs(np.subtract(w[param][card, 1], w[param][card, 0]))
+                w[param][card] = 0.05 * np.abs(np.subtract(w[param][card, 1], w[param][card, 0]))
             w[param] = w[param][range(model.parameter_cardinality[param]), 0]
             w[param] = np.tile(w[param], (nvox, 1))  # tile to create weight for each voxel
         elif model.parameter_cardinality[param] == 1:
-            w[param] = 0.01 * np.abs(np.subtract(w[param][1], w[param][0]))
+            # w[param] = 0.01 * np.abs(np.subtract(w[param][1], w[param][0]))
+            w[param] = 0.05 * np.abs(np.subtract(w[param][1], w[param][0]))
             w[param] = np.tile(w[param], nvox)  # tile to create weight for each voxel
 
 
@@ -163,6 +198,7 @@ def fit(model, acq_scheme, data, mask=None, nsteps=1000, burn_in=500):
 
     # initialise dictionaries (param_conv, accepted, accepted_per_100, acceptance_rate)
     for param in parameters_to_fit:
+        print(param)
         accepted[param] = np.squeeze(np.zeros((nvox, model.parameter_cardinality[param])))
         accepted_per_100[param] = np.squeeze(np.zeros((nvox, model.parameter_cardinality[param])))
         acceptance_rate[param] = np.squeeze(np.zeros((nvox, model.parameter_cardinality[param], nsteps)))
@@ -186,7 +222,7 @@ def fit(model, acq_scheme, data, mask=None, nsteps=1000, burn_in=500):
 
         # NB i (voxel loop) and j (MC loop) in keeping with Orton paper
         for j in range(0, nsteps):
-            #print(j)
+            print(j)
             # Gibbs moves to update priors.
             # Gibbs 1. sample mu from multivariate normal dist defined by current param estimates.
             parameter_vector = model_reduced.parameters_to_parameter_vector(**params_all_tform)[idx_roi, :]
@@ -268,14 +304,16 @@ def fit(model, acq_scheme, data, mask=None, nsteps=1000, burn_in=500):
                             accepted_per_100[p][to_accept[:, 1], card] += 1
                             params_all_tform[p][to_accept[:, 1], card] = copy(params_all_new[p][to_accept[:, 1], card])
                             likelihood_stored[p][to_accept[:, 1], card, j] = likelihood_new[to_accept[:, 0]] + prior_new[to_accept[:, 0]]
-                        likelihood_stored[p][to_reject[:, 1], card, j] = likelihood[to_reject[:, 0]] + prior[to_reject[:, 0]]
+                        if to_reject.shape != (0,):  # account for error thrown by all moves accepted
+                            likelihood_stored[p][to_reject[:, 1], card, j] = likelihood[to_reject[:, 0]] + prior[to_reject[:, 0]]
                 elif model.parameter_cardinality[p] == 1:
                     if to_accept.shape != (0,):  # account for error thrown by no accepted moves
                         accepted[p][to_accept[:, 1]] += 1
                         accepted_per_100[p][to_accept[:, 1]] += 1
                         params_all_tform[p][to_accept[:, 1]] = copy(params_all_new[p][to_accept[:, 1]])
                         likelihood_stored[p][to_accept[:, 1], j] = likelihood_new[to_accept[:, 0]] + prior_new[to_accept[:, 0]]
-                    likelihood_stored[p][to_reject[:, 1], j] = likelihood[to_reject[:, 0]] + prior[to_reject[:, 0]]
+                    if to_reject.shape != (0,):  # account for error thrown by all moves accepted
+                        likelihood_stored[p][to_reject[:, 1], j] = likelihood[to_reject[:, 0]] + prior[to_reject[:, 0]]
                 if to_accept.shape != (0,):  # account for error thrown by no accepted moves
                     E_fit[to_accept[:, 1], :] = g_new[to_accept[:, 0], :]
 
@@ -336,7 +374,11 @@ def fit(model, acq_scheme, data, mask=None, nsteps=1000, burn_in=500):
     # params_all = tform_params(params_all_new, model.parameter_names, model, 'r')
     params_all = tform_params(params_all_new, model.parameter_names, model, 'r')
     for param in parameters_to_fit:
-        params_all[param] = np.mean(param_conv[param][:, burn_in:-1], axis=1)
+        if model.parameter_cardinality[param] > 1:
+            for card in range(model.parameter_cardinality[param]):
+                params_all[param][:, card] = np.mean(param_conv[param][:, card, burn_in:-1], axis=1)
+        elif model.parameter_cardinality[param] == 1:
+            params_all[param] = np.mean(param_conv[param][:, burn_in:-1], axis=1)
 
     parameter_vector_bayes = params_all
     parameter_vector_init = params_all_orig
