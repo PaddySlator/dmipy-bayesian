@@ -384,4 +384,4 @@ def fit(model, acq_scheme, data, E_fit, parameter_vector_init, mask=None, nsteps
     # parameter_vector_bayes = params_all
     # parameter_vector_init = params_all_orig
 
-    return acceptance_rate, param_conv, params_all, likelihood_stored, w_stored
+    return params_all, acceptance_rate, param_conv, likelihood_stored, w_stored
