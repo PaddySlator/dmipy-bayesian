@@ -154,7 +154,7 @@ def main():
  
     # hierarchical Bayesian fitting
     proc_start = time.time()
-    acceptance_rate, param_conv, parameter_vector_bayes, parameter_vector_init, likelihood_stored, w_stored \
+    parameters_bayes_dict, acceptance_rate, parameter_convergence, likelihood, weights\
         = fit_bayes_new.fit(smt_noddi, acq_scheme_smt, signals_gt, E_fit, parameters_lsq_dict, mask, nsteps, burn_in, nupdates)
     compute_time(proc_start, time.time())
 
